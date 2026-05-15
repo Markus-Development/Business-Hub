@@ -1,20 +1,25 @@
 # Business Hub
 
-Internal Next.js application that acts as the "action layer" on top of Markus's existing business systems. Read this file in full at the start of every session.
+Internal Next.js application that acts as Markus's primary operating dashboard — a full hub on top of Notion, Google Calendar, and Zoho Books. Read this file in full at the start of every session.
 
 ## Project Overview
 
-Business Hub is a solo internal tool for Markus to operate his business from one place. It does not replace the systems that already work — it sits on top of them, decides what to do next, and triggers actions.
+Business Hub is a solo internal tool for Markus to run his business from one place. It is a tab-based hub with edit-capable surfaces — Markus reads, edits, and acts on his content from inside Business Hub, not by jumping between Notion, Google Calendar, and Zoho.
 
 Single user: Markus. Non-technical founder. No multi-user, no auth flows beyond personal OAuth, no public surface.
 
-What Business Hub is NOT:
-- Not a Notion replacement. Notion stays the PARA vault.
-- Not a task database. Tasks live in Notion.
-- Not a CRM, not a billing system, not a calendar app.
-- Not a dashboard for vanity metrics.
+**Primary goal:** meet deadlines, maintain overview, and work on what matters with clarity — without being overwhelmed.
 
-It IS: a daily briefing, a capture endpoint, a client action layer, and a focused "On my plate" view. Nothing else without an explicit request from Markus.
+What Business Hub IS:
+- A full hub with 6 tabs: Projects, AI Digest, Calendar, Clients, Areas, Resources
+- An edit-capable frontend on top of Notion + Google Calendar + Zoho Books
+- An AI digest that reads everything and tells Markus what to do today and this week
+
+What Business Hub is NOT:
+- Not a replacement for Notion as the data layer. Notion still owns the schema and the data.
+- Not a CRM, not a billing system. Zoho owns billing.
+- Not a multi-user product. Solo app.
+- Not a vanity-metrics dashboard.
 
 ## Architecture & Data Flow
 
@@ -22,7 +27,7 @@ Each external system owns one slice of truth. The app never duplicates that trut
 
 - **Notion** — source of truth for content. Projects DB, Inbox DB, Areas, Resources, Archives (PARA).
 - **Google Calendar** — source of truth for time. All time blocks and events live here.
-- **Zoho Books** — source of truth for billing. Invoices, customers, payments.
+- **Zoho Books** — source of truth for billing. Read-only from Business Hub (invoices, customers, payments).
 - **Supabase** — app-internal state ONLY. Briefing history, time-block suggestion queue, short-lived cached API responses, user settings, audit logs. Never a second source of truth for content, time, or billing.
 - **Anthropic API** — decision-making layer. Briefings (Sonnet), classifications (Haiku), suggestions.
 
@@ -31,7 +36,79 @@ Each external system owns one slice of truth. The app never duplicates that trut
 - Read fresh from the source of truth, or cache for a short, explicit TTL (seconds to minutes, not hours) in Supabase. Cache rows must have an `expires_at` column.
 - Writes go back to the source of truth, not to a Supabase mirror. Example: a confirmed time block is written to Google Calendar, not stored as the canonical record in Supabase.
 - Supabase rows that reference Notion entities store the Notion ID and timestamp of last sync — never the content itself beyond what is strictly needed for an action queue (e.g., title for display, status for filter).
+- Optimistic UI updates are acceptable and encouraged for write-heavy surfaces (Kanban drag-drop, inline edits). Reconcile against the source of truth on success/failure.
+- Conflict policy for the solo-user case: last-write-wins. Markus is the only writer; concurrent-edit conflicts are rare and acceptable.
 - If a feature seems to need a mirror table, stop and propose the alternative (live fetch, short cache, or webhook-driven sync log) before building it.
+
+## Tab-by-Tab Specification
+
+The hub is organized as 6 tabs. Build them in the order listed in [Capability Priority Order](#capability-priority-order).
+
+### Tab 1: Projects (PARA Projects DB)
+
+A curated view of all Notion Projects, with three view modes Markus toggles between:
+
+- **Table view** — sortable columns (Name, Status, Area, Priority, Due Date, Next Action). Filterable by Status, Area, Priority. Inline edit for Status and Priority. Built on TanStack Table.
+- **Kanban view** — three columns grouped by Priority (High / Medium / Low). Drag-and-drop between columns writes the new Priority to Notion. Built on dnd-kit.
+- **Calendar view** — deadline view: projects rendered on their Due Date. Projects without a Due Date appear in a sidebar "no deadline" list. Click a project to open it in Notion. Built on FullCalendar React.
+
+All three views read from the same Notion Projects DB. View toggle is a segmented control in the tab header. Selected view persists in localStorage.
+
+Edits supported (any view): Status, Priority. Other edits happen in Notion.
+
+### Tab 2: AI Digest
+
+Claude reads Markus's Active Projects, Areas, today's calendar, and open invoices, and produces:
+
+- **Daily digest** — a short briefing: what to focus on today, what's overdue, what to defer. Generated on demand or cached for the day in Supabase `briefings` table.
+- **Weekly plan** — a 5-day plan based on current Active projects, deadlines, and estimated minutes. Generated on demand. Markus can regenerate.
+- **Time-block suggestions** — proposed Google Calendar blocks for today. Each suggestion has a one-click "Confirm" that writes the event to Google Calendar.
+
+Model usage: Sonnet for digest and weekly plan (reasoning required). Haiku for any classification subtasks. Model IDs imported from `constants/models.js`.
+
+### Tab 3: Calendar
+
+Mirror of Google Calendar with full edit capability:
+
+- Day, week, and month views.
+- Create new events (with project assignment via a dropdown of Active projects).
+- Edit existing events (time, title, description).
+- Delete events with confirmation.
+- Time-block suggestions from the AI Digest appear here as "pending" until confirmed.
+
+Built on FullCalendar React (same library as the Projects calendar view — single dependency).
+
+### Tab 4: Clients
+
+A per-client overview, with the client list sourced from Zoho Books contacts (filtered to active customers with at least one invoice in the last 12 months — exact filter TBD when building).
+
+For each client:
+- Total turnover (lifetime), current due, overdue invoices — pulled from Zoho.
+- Link to their EasyFinance dashboard (external URL — Business Hub does not embed EasyFinance).
+- Status of this month's tasks (e.g. Book a Call, Get Transactions, Prepare Call, Call Done) — these are Notion Projects scoped to the client via the Projects DB `Client` property.
+- WhatsApp message templates (copy-to-clipboard, not embedded UI).
+
+Read-only on Zoho side. Project status updates write back to Notion.
+
+### Tab 5: Areas (PARA Areas)
+
+Bird's-eye view of ongoing Areas of work (Marketing, Fulfillment, Development, Sales, Accounting, Operations, Content, Personal). Each Area card shows:
+
+- Current milestone (1 line, editable inline)
+- Next 1–2 steps (editable inline)
+- Count of Active projects in the Area (links to Projects tab filtered by Area)
+
+Source: a new Notion `Areas` DB (or Area metadata on the existing Projects DB — TBD when building). This may require a small Notion schema addition.
+
+### Tab 6: Resources (PARA Resources + Archive)
+
+Read + write access to Notion Resources and Archive databases:
+
+- Browse Resources and Archive items.
+- Add new notes (creates a page in Resources with title + body).
+- Search across both.
+
+No editing of existing notes inside Business Hub — clicking an existing note opens it in Notion. The "add note" flow is one-way create.
 
 ## Tech Stack
 
@@ -40,6 +117,11 @@ Framework:
 - **Tailwind CSS 4** (PostCSS plugin `@tailwindcss/postcss`) — Tailwind v4 uses `@import "tailwindcss"` in CSS, not a `tailwind.config.js`
 - **shadcn/ui** (`shadcn` ^4.7.0) with the **Nova preset** — built on `radix-ui` ^1.4.3, `lucide-react` ^1.16.0 icons, and Geist fonts. Theme tokens via CSS variables in [app/globals.css](app/globals.css). Base color: neutral.
 - Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes`, `sonner`
+
+View libraries (add when the relevant tab is built — not pre-installed):
+- **TanStack Table** (`@tanstack/react-table`) — Projects table view
+- **dnd-kit** (`@dnd-kit/core`, `@dnd-kit/sortable`) — Projects Kanban drag-and-drop
+- **FullCalendar React** (`@fullcalendar/react` + adapters) — Projects deadline view and Calendar tab
 
 SDKs:
 - `@notionhq/client` ^5.21.0 — PARA reads/writes
@@ -52,27 +134,29 @@ Use server components and route handlers for anything that touches a secret. Nev
 
 ## Capability Priority Order
 
-Build in this order. Do not propose features outside this list without an explicit request from Markus.
+Build in this order. Each tab must be functional (read + the writes specified above) before moving to the next.
 
-1. **Daily briefing + time-block suggestions** — pulls today's Notion projects, today's calendar, and open invoices; Claude (Sonnet) drafts a briefing and proposes time blocks; confirmed blocks are written to Google Calendar.
-2. **Capture endpoint** — single input field. Claude (Haiku) classifies the text as Task / Idea / Reference / Someday, fills the Inbox DB row in Notion with `Type` and `Routed To`, and marks `Processed = false` for Markus's review.
-3. **Client action layer** — per-client view that combines Zoho Books invoice status, upcoming Google Calendar calls, and WhatsApp message templates (copy-to-clipboard, not embedded UI).
-4. **Read-only "On my plate" view** — list of Active projects from Notion grouped by Area, with Next Action and Due Date. Read-only; edits happen in Notion.
+1. **Projects** — foundation. Everything else references project data.
+2. **AI Digest** — highest leverage. Needs Projects to be working first.
+3. **Calendar** — execution surface for time blocks suggested by the AI Digest.
+4. **Clients** — self-contained; adds Zoho Books integration.
+5. **Areas** — derived view over Projects; cheaper to build after Projects is solid.
+6. **Resources** — lowest daily-use surface; defer.
 
 When a session starts and the user asks "what's next", default to whatever is the highest unfinished item in this list.
 
 ## Deferred Features
 
-These are explicitly off-limits until Markus asks for them by name. Do not suggest them as "nice to have", do not pre-build scaffolding for them, do not mention them in TODOs.
+Off-limits until Markus asks for them by name. Do not suggest as "nice to have", do not pre-build scaffolding, do not mention in TODOs.
 
-- Kanban / table / calendar task views — Notion already does this.
-- Project phase tracking UI — Notion checkboxes do this.
-- Knowledge base UI — Notion Resources is this.
-- Dev roadmap mirror from CLAUDE.md repos — post-MVP.
-- Embedded WhatsApp Web UI — fragile, defer.
-- Recurring task engine for invoices — defer.
 - Multi-user / client portal — solo app for now.
+- Embedded WhatsApp Web UI — fragile, copy-to-clipboard templates only.
+- Recurring task engine for invoices — defer.
 - Specialized sub-agents per business area — revisit after two weeks of v1 usage.
+- Mobile-optimized layouts — desktop-first, mobile is a v2 concern.
+- Notification system (email, push, in-app) — Markus checks the hub manually.
+- Editing existing Resources/Archive notes inside Business Hub — open in Notion instead.
+- Two-way EasyFinance integration — Business Hub and EasyFinance stay separate codebases and separate data. Business Hub only links out to EasyFinance URLs.
 
 ## Coding Conventions
 
@@ -99,6 +183,10 @@ Every value below lives in a constants file. Never hardcode a table name, route,
 
 All UI strings flow through `constants/translations.js`. Each key has both `de` and `en` entries. If a string is added in one language only, that is a bug.
 
+**Default locale: German (`de`).** A small toggle button in the top nav switches between DE and EN. Selected locale persists in localStorage so it survives reloads. The toggle exists primarily so Asher (English-speaking advisor) can read the UI when needed — it is not a multi-language product feature.
+
+Implementation: lightweight. A `useLocale()` hook reading/writing localStorage, a `t(key)` helper that resolves against the current locale, and a `<LocaleToggle />` component in the top nav. No `next-intl` library — overkill for two locales and one user.
+
 ### Prompt structure
 
 When Markus writes prompts to Claude Code, he uses XML tags: `<context>`, `<task>`, `<constraints>`, `<do_not>`, `<files>`, `<success_criteria>`. Read all of them before acting. Treat `<do_not>` as hard limits, not suggestions.
@@ -121,7 +209,9 @@ Before executing a prompt that touches many files, reads large files end-to-end,
 
 ### Prefer proven libraries
 
-Before writing custom code for a solved problem (date math, OAuth flows, table rendering, form validation), check for an established library or the idiomatic shadcn/ui primitive. Recommend it proactively. Custom code is for the parts that are actually unique to Business Hub.
+Before writing custom code for a solved problem (date math, OAuth flows, table rendering, drag-and-drop, calendar grids, form validation), check for an established library or the idiomatic shadcn/ui primitive. Recommend it proactively. Custom code is for the parts that are actually unique to Business Hub.
+
+Specifically: do not build a custom table, custom Kanban, or custom calendar grid. Use TanStack Table, dnd-kit, and FullCalendar respectively.
 
 ### Performance and cost
 
@@ -310,6 +400,8 @@ Stored in `.env.local`. Never commit. The example file `.env.local.example` list
 NOTION_TOKEN=                 # internal integration token, shared with each DB
 NOTION_PROJECTS_DB_ID=        # 32-char hex of the Projects database
 NOTION_INBOX_DB_ID=           # 32-char hex of the Inbox database
+NOTION_AREAS_DB_ID=           # 32-char hex of the Areas database (added when Tab 5 builds)
+NOTION_RESOURCES_DB_ID=       # 32-char hex of the Resources database (added when Tab 6 builds)
 
 # Google Calendar — OAuth2 web app credentials
 GOOGLE_CLIENT_ID=
@@ -338,18 +430,18 @@ Notion is the source of truth. These property names are exact and case-sensitive
 
 ### Projects DB
 
-| Property | Type | Notes |
-| --- | --- | --- |
-| Name | title | Project name |
-| Status | select | `Active` / `On Hold` / `Done` |
-| Area | select | One of the values in `constants/areas.js` |
-| Priority | select | `High` / `Medium` / `Low` |
-| Outcome | rich_text | One-line definition of done |
-| Next Action | rich_text | The very next physical action |
-| Due Date | date | Optional |
-| Estimated Minutes | number | Used by the time-block planner |
-| Client | rich_text | Optional, free text |
-| Created | created_time | Auto |
+| Property | Type | Notes | Edited from Business Hub? |
+| --- | --- | --- | --- |
+| Name | title | Project name | No (open in Notion) |
+| Status | select | `Active` / `On Hold` / `Done` | Yes — inline edit in Table view |
+| Area | select | One of the values in `constants/areas.js` | No (open in Notion) |
+| Priority | select | `High` / `Medium` / `Low` | Yes — inline edit (Table) + drag-drop (Kanban) |
+| Outcome | rich_text | One-line definition of done | No (open in Notion) |
+| Next Action | rich_text | The very next physical action | No (open in Notion) |
+| Due Date | date | Optional | No (open in Notion) |
+| Estimated Minutes | number | Used by the time-block planner | No (open in Notion) |
+| Client | rich_text | Optional, free text — links project to Zoho client | No (open in Notion) |
+| Created | created_time | Auto | n/a |
 
 ### Inbox DB
 
@@ -360,6 +452,14 @@ Notion is the source of truth. These property names are exact and case-sensitive
 | Type | select | `Task` / `Idea` / `Reference` / `Someday` — set by Claude during classification |
 | Routed To | rich_text | Target Area / Project / Resource — set by Claude |
 | Processed | checkbox | Defaults false; Markus flips to true after review |
+
+### Areas DB (created when Tab 5 builds)
+
+To be defined when Tab 5 is built. Likely properties: Name (title), Current Milestone (rich_text), Next Steps (rich_text), Status (select: Active / Paused).
+
+### Resources DB (created when Tab 6 builds)
+
+Existing in Notion already. Schema TBD when Tab 6 is built.
 
 If a new property is needed, it gets added in Notion first, then mirrored in the relevant constants file, then used in code. Never invent a property in code that does not exist in Notion.
 
@@ -384,6 +484,12 @@ Typography (installed by the Nova preset):
 Icons: **lucide-react**. This is the project's icon library — use it instead of inline SVGs or other icon packs.
 
 Load fonts via `next/font` so they are self-hosted and preloaded. Avoid Google Fonts CDN links at runtime.
+
+### Layout
+
+- Top nav: app title, tab switcher (6 tabs), locale toggle (DE/EN), user avatar (placeholder — solo app).
+- Tab content fills the rest of the viewport. No left sidebar (would compete with the tab nav).
+- Desktop-first. Min viewport: 1280px wide. Mobile is a v2 concern.
 
 ## Authoritative Documentation Sources
 
@@ -445,6 +551,12 @@ These are the silent-failure traps. Read them before touching the matching integ
 - CLI + migrations: https://supabase.com/docs/guides/cli
 - Row Level Security: https://supabase.com/docs/guides/database/postgres/row-level-security
 
+### View libraries (added when relevant tab is built)
+
+- TanStack Table: https://tanstack.com/table/latest/docs/introduction
+- dnd-kit: https://docs.dndkit.com/
+- FullCalendar React: https://fullcalendar.io/docs/react
+
 ### Stack (Next.js + shadcn/ui)
 
 - Next.js docs: https://nextjs.org/docs
@@ -476,13 +588,30 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - `lib/` directory exists with `lib/utils.ts` from the shadcn init; no integration files yet
 
 **Not yet built:**
-- Any feature from the Capability Priority Order
+- Any tab from the Capability Priority Order
 - Any of the six `constants/*.js` files
 - Any integration code under `lib/` (no `lib/notion.ts`, `lib/anthropic.ts`, etc.)
 - Any Supabase tables or migrations (`supabase/` directory does not exist)
 - Any agents or sub-agents
+- TanStack Table, dnd-kit, FullCalendar React not yet installed
+- Locale toggle / `useLocale()` hook / `LocaleToggle` component
+- Top nav with 6-tab switcher
+- Notion Areas and Resources DBs (will be added when Tabs 5 and 6 build)
 
-**Next planned step:** Capability #1 — daily briefing + time-block suggestions. To be built during the workshop with Asher.
+**Today's plan (2026-05-15):**
+Tab 1 (Projects) end-to-end with all three view modes:
+1. `lib/notion.ts` — read Active projects, update Status/Priority
+2. `constants/translations.js` — DE/EN entries for Projects tab + nav
+3. `useLocale()` hook + `<LocaleToggle />` in top nav (DE default, localStorage-persisted)
+4. Top nav with 6 tab links (only Projects routes to a real page; others are placeholders)
+5. Projects Table view (TanStack Table) — sortable, filterable, inline edit Status + Priority
+6. Projects Kanban view (dnd-kit) — three columns by Priority, drag-drop writes to Notion
+7. Projects Calendar view (FullCalendar React) — projects on Due Date, sidebar for no-deadline
+8. View toggle (segmented control, localStorage-persisted)
+
+Accepted risk: 3 views in one day is aggressive. Markus explicitly chose this scope after pushback.
+
+**Next planned step after today:** Tab 2 — AI Digest.
 
 ## Start-of-Session Checklist
 
