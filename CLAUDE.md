@@ -35,13 +35,18 @@ Each external system owns one slice of truth. The app never duplicates that trut
 
 ## Tech Stack
 
-- **Next.js** (App Router) + **React** + **TypeScript**
-- **Tailwind CSS** + **shadcn/ui** for the design system
-- **Supabase** (`@supabase/supabase-js`) for app-internal state
-- **Anthropic SDK** (`@anthropic-ai/sdk`) for the decision layer
-- **Notion SDK** (`@notionhq/client`) for PARA reads/writes
-- **googleapis** for Google Calendar OAuth + events
-- **axios** for Zoho Books REST calls (no official JS SDK)
+Framework:
+- **Next.js 16.2.6** (App Router) + **React 19.2.4** + **TypeScript 5**
+- **Tailwind CSS 4** (PostCSS plugin `@tailwindcss/postcss`) — Tailwind v4 uses `@import "tailwindcss"` in CSS, not a `tailwind.config.js`
+- **shadcn/ui** (`shadcn` ^4.7.0) with the **Nova preset** — built on `radix-ui` ^1.4.3, `lucide-react` ^1.16.0 icons, and Geist fonts. Theme tokens via CSS variables in [app/globals.css](app/globals.css). Base color: neutral.
+- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes`, `sonner`
+
+SDKs:
+- `@notionhq/client` ^5.21.0 — PARA reads/writes
+- `@anthropic-ai/sdk` ^0.96.0 — decision layer
+- `@supabase/supabase-js` ^2.105.4 — app-internal state
+- `googleapis` ^171.4.0 — Google Calendar OAuth + events
+- `axios` ^1.16.1 — Zoho Books REST calls (no official JS SDK)
 
 Use server components and route handlers for anything that touches a secret. Never expose `NOTION_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `ZOHO_*`, or Google client secrets to the client.
 
@@ -73,14 +78,16 @@ These are explicitly off-limits until Markus asks for them by name. Do not sugge
 
 ### Constants files
 
-Every value below lives in a constants file. Never hardcode a table name, route, model ID, area name, priority, or user-facing string anywhere else in the codebase. Files are created when the first feature needs them — do not pre-create empty ones.
+Every value below lives in a constants file. Never hardcode a table name, route, model ID, area name, priority, or user-facing string anywhere else in the codebase.
 
-- `constants/tables.js` — every Supabase table name. Imported by every query.
-- `constants/routes.js` — every app route (both internal page paths and external API endpoints).
-- `constants/models.js` — Anthropic model IDs. Model upgrades must be a one-line change here.
-- `constants/translations.js` — DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
-- `constants/areas.js` — Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal.
-- `constants/priorities.js` — High, Medium, Low.
+**Status: none of these files exist yet.** This is intentional — they get created when the first feature actually needs them, not pre-scaffolded with empty exports. When you add the first constant to a file, create the file with that constant; do not create empty placeholder files.
+
+- `constants/tables.js` — **NOT YET CREATED.** Every Supabase table name. Imported by every query.
+- `constants/routes.js` — **NOT YET CREATED.** Every app route (both internal page paths and external API endpoints).
+- `constants/models.js` — **NOT YET CREATED.** Anthropic model IDs. Model upgrades must be a one-line change here.
+- `constants/translations.js` — **NOT YET CREATED.** DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
+- `constants/areas.js` — **NOT YET CREATED.** Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal.
+- `constants/priorities.js` — **NOT YET CREATED.** High, Medium, Low.
 
 ### Supabase
 
@@ -127,6 +134,8 @@ When in doubt, propose the cheaper option and let Markus pick.
 
 ## Integration Setup
 
+These are reference snippets. No integration code has been written yet. Files will live under `lib/` (e.g. `lib/notion.ts`, `lib/zoho.ts`, `lib/anthropic.ts`, `lib/supabase-server.ts`).
+
 All snippets assume the env vars listed in [Environment Variables](#environment-variables).
 
 ### Notion
@@ -136,9 +145,18 @@ import { Client } from "@notionhq/client";
 
 export const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
+// 2025-09-03+: queries run against a data_source_id, not a database_id.
+// Discover the data source by retrieving the database first — works for both
+// single- and multi-source databases (take the first entry for single-source).
+async function firstDataSourceId(databaseId: string) {
+  const db = await notion.databases.retrieve({ database_id: databaseId });
+  return (db as any).data_sources[0].id as string;
+}
+
 export async function listActiveProjects() {
-  return notion.databases.query({
-    database_id: process.env.NOTION_PROJECTS_DB_ID!,
+  const dataSourceId = await firstDataSourceId(process.env.NOTION_PROJECTS_DB_ID!);
+  return notion.dataSources.query({
+    data_source_id: dataSourceId,
     filter: { property: "Status", select: { equals: "Active" } },
     sorts: [{ property: "Priority", direction: "ascending" }],
   });
@@ -221,17 +239,14 @@ export async function zohoAccessToken() {
 export async function listInvoices() {
   const token = await zohoAccessToken();
   const { data } = await axios.get(`${API}/invoices`, {
-    headers: {
-      Authorization: `Zoho-oauthtoken ${token}`,
-      "X-com-zoho-books-organizationid": process.env.ZOHO_ORG_ID!,
-    },
+    headers: { Authorization: `Zoho-oauthtoken ${token}` },
     params: { organization_id: process.env.ZOHO_ORG_ID },
   });
   return data.invoices;
 }
 ```
 
-Gotchas: the access token expires after ~1 hour. Cache it in Supabase with `expires_at` rather than refreshing on every call. The `organization_id` must be sent BOTH as the `X-com-zoho-books-organizationid` header and as a query param on most endpoints. Region matters: `accounts.zoho.com` and `zohoapis.com` are correct for US; EU uses `.eu` suffixes.
+Gotchas: the access token expires after ~1 hour. Cache it in Supabase with `expires_at` rather than refreshing on every call. The `organization_id` query parameter is required on every request — the v3 docs treat it as a parameter, not a header, so the `X-com-zoho-books-organizationid` header is unnecessary. Region matters: `accounts.zoho.com` and `zohoapis.com` are correct for US; EU uses `.eu` suffixes.
 
 ### Anthropic
 
@@ -350,20 +365,23 @@ If a new property is needed, it gets added in Notion first, then mirrored in the
 
 ## UI / Design
 
-Stack: Tailwind + shadcn/ui. No design system rewrites. shadcn components are copied in via the CLI and customized in place.
+Stack: Tailwind v4 + shadcn/ui (Nova preset, base color `neutral`, icons `lucide`). No design system rewrites. shadcn components are copied in via the CLI and customized in place.
 
 Aesthetic: refined-minimal SaaS, not maximalist. Generous whitespace, single accent color, no decorative gradients, no glassmorphism.
 
-Palette:
-- Primary blue: `#2f6fe5`
-- Ink (text, dark surfaces): `#0a1733`
-- Light background: `#fafbfd`
+Colors: the shadcn theme tokens in [app/globals.css](app/globals.css) are the source of truth. Reference colors through CSS variables (`var(--primary)`, `var(--background)`, etc.) or Tailwind utilities that map to them (`bg-primary`, `text-foreground`). Do not hardcode hex values in components.
+
+Intended palette direction (apply by tuning the CSS variables, not by hardcoding):
+- Primary blue: ~`#2f6fe5`
+- Ink (text, dark surfaces): ~`#0a1733`
+- Light background: ~`#fafbfd`
 - Borders / muted: low-saturation neutrals derived from the above
 
-Typography:
-- Display headings: **Fraunces**
-- Body: **Inter Tight**
-- Code, timestamps, monospaced numerics: **JetBrains Mono**
+Typography (installed by the Nova preset):
+- Sans (body + headings): **Geist Sans** — exposed via `--font-sans`
+- Mono (code, timestamps, numerics): **Geist Mono** — exposed via `--font-geist-mono`
+
+Icons: **lucide-react**. This is the project's icon library — use it instead of inline SVGs or other icon packs.
 
 Load fonts via `next/font` so they are self-hosted and preloaded. Avoid Google Fonts CDN links at runtime.
 
@@ -442,6 +460,29 @@ These are the silent-failure traps. Read them before touching the matching integ
 ### When to Fetch
 
 > Fetch when: writing a new integration call, debugging an unexpected API error, generating example code with method names, or upgrading a library. Do NOT fetch for: trivial parameter tweaks where the signature is already verified, refactoring local code with no API surface change, styling, or generic Next.js/Tailwind patterns.
+
+## Current Repo Status
+
+Snapshot of what actually exists in the repo. Treat this as the single source of truth for "where are we right now" — update it as state changes.
+
+**Bootstrap date:** 2026-05-15
+
+**Confirmed in place:**
+- Next.js 16.2.6 app scaffolded with App Router, TypeScript, Tailwind v4 (PostCSS plugin, no `tailwind.config.js`)
+- shadcn/ui initialized with the **Nova preset** (`style: "radix-nova"`, `baseColor: "neutral"`, `iconLibrary: "lucide"`). Components installed in [components/ui/](components/ui/): `badge`, `button`, `card`, `dialog`, `input`, `select`, `separator`, `sonner`, `tabs`
+- All SDK dependencies installed: `@notionhq/client`, `@anthropic-ai/sdk`, `@supabase/supabase-js`, `googleapis`, `axios`
+- `.env.local` populated with all secrets (Notion, Google, Zoho, Supabase, Anthropic) — not committed
+- PARA structure exists in Notion with Projects and Inbox databases (IDs in `.env.local`)
+- `lib/` directory exists with `lib/utils.ts` from the shadcn init; no integration files yet
+
+**Not yet built:**
+- Any feature from the Capability Priority Order
+- Any of the six `constants/*.js` files
+- Any integration code under `lib/` (no `lib/notion.ts`, `lib/anthropic.ts`, etc.)
+- Any Supabase tables or migrations (`supabase/` directory does not exist)
+- Any agents or sub-agents
+
+**Next planned step:** Capability #1 — daily briefing + time-block suggestions. To be built during the workshop with Asher.
 
 ## Start-of-Session Checklist
 
