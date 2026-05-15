@@ -48,13 +48,15 @@ The hub is organized as 6 tabs. Build them in the order listed in [Capability Pr
 
 A curated view of all Notion Projects, with three view modes Markus toggles between:
 
-- **Table view** — sortable columns (Name, Status, Area, Priority, Due Date, Next Action). Filterable by Status, Area, Priority. Inline edit for Status and Priority. Built on TanStack Table.
-- **Kanban view** — three columns grouped by Priority (High / Medium / Low). Drag-and-drop between columns writes the new Priority to Notion. Built on dnd-kit.
-- **Calendar view** — deadline view: projects rendered on their Due Date. Projects without a Due Date appear in a sidebar "no deadline" list. Click a project to open it in Notion. Built on FullCalendar React.
+- **Table view** — sortable columns (Name, Status, Area, Priority, Due Date, Next Action). Filterable by Status, Area, Priority. Inline edit for Status, Area, Priority, Due Date, and Next Action. Clicking the Name cell opens the detail drawer (Name is edited there, not in the row). Built on TanStack Table.
+- **Kanban view** — three columns grouped by Status (Active / On Hold / Done). Drag-and-drop between columns writes the new Status to Notion. Each card shows a Priority indicator (small colored dot + label). Clicking the card body opens the detail drawer; the grip handle remains the drag activator. Built on dnd-kit.
+- **Calendar view** — deadline view: projects rendered on their Due Date. Projects without a Due Date appear in a sidebar "no deadline" list. Clicking an event or a sidebar item opens the detail drawer. Drag-to-reschedule is supported: dragging an event to a different day writes the new Due Date to Notion (date-to-date only; no resize, no sidebar-to-calendar). Built on FullCalendar React + the `@fullcalendar/interaction` plugin.
 
-All three views read from the same Notion Projects DB. View toggle is a segmented control in the tab header. Selected view persists in localStorage.
+All three views read from the same Notion Projects DB. View toggle is a segmented control in the tab header. Selected view persists in localStorage. The Status/Area/Priority filters live at the tab level and apply to all three views.
 
-Edits supported (any view): Status, Priority. Other edits happen in Notion.
+**Detail drawer** — clicking a project in any view opens a right-anchored drawer (shadcn `<Sheet>`, 720px) that is the primary detail surface. The top zone is a compact metadata list (icon + narrow label column + value): Name (large editable heading), Status, Area, Priority, Due Date, Next Action, Estimated Minutes, Client, Outcome (read-only), Created. The bottom zone displays the Notion **page body** read-only, fetched live via `notion.blocks.children.list` and rendered through a custom block renderer (no rich-text library). Editing the page body still happens in Notion via the drawer's "Open in Notion" link.
+
+An **"Add Project" button** in the tab header opens a modal (shadcn `<Dialog>`) to create a new project; the new page is written to the Notion Projects DB and appears immediately in the current view (subject to active filters).
 
 ### Tab 2: AI Digest
 
@@ -219,6 +221,7 @@ Flag unnecessary DB round-trips, slow page loads, and token waste. Specific exam
 - Refetching the same Notion page inside a loop — batch or cache.
 - Sending full project bodies to Claude when a title + status is enough — trim.
 - Re-running a briefing prompt that has not changed inputs — read from `briefings` table.
+- Page body fetched live on drawer open. Future: cache by `pageId + last_edited_time` in Supabase if drawer-open latency becomes noticeable.
 
 When in doubt, propose the cheaper option and let Markus pick.
 
@@ -432,16 +435,16 @@ Notion is the source of truth. These property names are exact and case-sensitive
 
 | Property | Type | Notes | Edited from Business Hub? |
 | --- | --- | --- | --- |
-| Name | title | Project name | No (open in Notion) |
-| Status | select | `Active` / `On Hold` / `Done` | Yes — inline edit in Table view |
-| Area | select | One of the values in `constants/areas.js` | No (open in Notion) |
-| Priority | select | `High` / `Medium` / `Low` | Yes — inline edit (Table) + drag-drop (Kanban) |
-| Outcome | rich_text | One-line definition of done | No (open in Notion) |
-| Next Action | rich_text | The very next physical action | No (open in Notion) |
-| Due Date | date | Optional | No (open in Notion) |
-| Estimated Minutes | number | Used by the time-block planner | No (open in Notion) |
-| Client | rich_text | Optional, free text — links project to Zoho client | No (open in Notion) |
-| Created | created_time | Auto | n/a |
+| Name | title | Project name | Yes — drawer (opens from any view) |
+| Status | status | `Active` / `On Hold` / `Done` — Notion `status` type (not `select`), uses `status: { equals: ... }` filter shape | Yes — Table inline, Kanban drag-drop, drawer |
+| Area | select | One of the values in `constants/areas.js` | Yes — Table inline, drawer |
+| Priority | select | `High` / `Medium` / `Low` | Yes — Table inline, drawer |
+| Outcome | rich_text | One-line definition of done | Read-only display in drawer; edit body in Notion |
+| Next Action | rich_text | The very next physical action | Yes — Table inline, drawer |
+| Due Date | date | Optional | Yes — Table inline, drawer |
+| Estimated Minutes | number | Used by the time-block planner | No (display only in drawer) |
+| Client | rich_text | Optional, free text — links project to Zoho client | No (display only in drawer) |
+| Created | (page metadata) | Read from `page.created_time` on the Notion page object, not a DB property | n/a |
 
 ### Inbox DB
 
@@ -524,6 +527,7 @@ These are the silent-failure traps. Read them before touching the matching integ
 - Upgrade guide 2025-09-03 (data sources — READ FIRST): https://developers.notion.com/docs/upgrade-guide-2025-09-03
 - Upgrade guide 2026-03-11 (latest): https://developers.notion.com/docs/upgrade-guide-2026-03-11
 - JS SDK repo: https://github.com/makenotion/notion-sdk-js
+- Retrieve a block's children (page body fetch): https://developers.notion.com/reference/retrieve-a-block-children
 - Full doc index for fetching: https://developers.notion.com/llms.txt
 
 ### Google Calendar API (v3)
