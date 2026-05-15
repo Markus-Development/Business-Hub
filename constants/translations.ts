@@ -95,6 +95,22 @@ export const translations = {
   "blocks.moreInNotion": { de: "(mehr in Notion)", en: "(more in Notion)" },
 
   "common.comingSoon": { de: "Demnächst verfügbar", en: "Coming soon" },
+
+  "google.connect": { de: "Google verbinden", en: "Connect Google" },
+  "google.connected.title": {
+    de: "Google Kalender verbunden",
+    en: "Google Calendar connected",
+  },
+  "google.connected.body": {
+    de: "Business Hub kann jetzt deinen Kalender lesen und Termine schreiben.",
+    en: "Business Hub can now read your calendar and write events.",
+  },
+  "google.connected.back": { de: "Zurück zu Projekten", en: "Back to Projects" },
+  "google.error.title": {
+    de: "Google-Verbindung fehlgeschlagen",
+    en: "Google connection failed",
+  },
+  "google.error.retry": { de: "Erneut versuchen", en: "Try again" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

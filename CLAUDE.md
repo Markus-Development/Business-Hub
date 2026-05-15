@@ -21,6 +21,61 @@ What Business Hub is NOT:
 - Not a multi-user product. Solo app.
 - Not a vanity-metrics dashboard.
 
+## Standard Prompt Constraints
+
+Every Claude Code prompt for Business Hub should apply the constraints below. To keep prompts short, prompts can simply state "Apply the standard constraints listed in CLAUDE.md" rather than repeating them. The constraints live here so they update centrally — a change here propagates to all future prompts.
+
+### Always
+
+- Specify exact columns in all Supabase queries. Never `select('*')`.
+- All secrets stay server-side. Never expose API keys, refresh tokens, or service-role keys to the client.
+- Use existing constants files (`constants/tables.ts`, `constants/models.ts`, `constants/translations.ts`, `constants/areas.ts`, `constants/priorities.ts`, `constants/routes.ts`). Create them if missing. Never hardcode table names, model IDs, route paths, areas, priorities, or user-facing strings inline.
+- New i18n strings require both `de` and `en` entries. Single-language entries are a bug.
+- Every migration goes in `supabase/migrations/` with a corresponding `MIGRATION_LOG.md` entry (date, filename, what, why). Do not run migrations — surface the file path for Markus to run manually.
+- Migrations are additive. No drops, no destructive schema changes without explicit confirmation.
+- All work happens on the `dev` branch. Never push directly to `main`.
+- Prefer proven libraries over custom code for solved problems (table rendering, drag-and-drop, calendar grids, OAuth flows, date math). Flag the choice.
+- Optimistic UI updates for write-heavy surfaces. Reconcile on error with toast + revert.
+- Use shadcn primitives where available before installing alternatives.
+- CSS through theme tokens (`var(--*)` or Tailwind utilities that map to them). No hardcoded hex except where explicitly scoped (e.g. the amber OKLCH for Medium priority on the Projects Calendar).
+- Keep component files under ~400 lines. Extract sub-components when they grow beyond that.
+- Run `npm run build` before declaring the task complete.
+- Touch only the files listed in the prompt's `<files>` section. Surface unexpected scope creep before acting on it.
+
+### Never
+
+- Do not push to `main` directly.
+- Do not introduce dependencies beyond what is listed in the prompt's `<files>` section or explicitly named in the prompt's `<task>` section.
+- Do not run destructive migrations or `git` operations beyond the standard `add / commit / push origin dev` flow.
+- Do not modify unrelated tabs or features.
+- Do not introduce form state libraries (react-hook-form, formik) unless the task specifically requires complex validation.
+- Do not auto-detect or change locale defaults.
+- Do not add telemetry, analytics, or external logging.
+
+### CLAUDE.md edit policy
+
+CLAUDE.md is the authoritative spec for Business Hub. Edits to it during a feature prompt follow a two-tier policy:
+
+**Tier 1 — auto-edit OK when relevant to the task:**
+- Current Repo Status (mark new features as built, update "Not yet built" list)
+- Tab specs (when implementation surfaces a detail worth documenting)
+- PARA Data Model tables (when a property type or edit surface changes)
+- Additive entries to existing lists: env vars, dependencies, Authoritative Documentation Sources, view libraries
+
+**Tier 2 — must surface in the final report and wait for explicit confirmation in a follow-up prompt:**
+- Critical Version Warnings (Notion, Zoho, Google, Anthropic — these protect against silent failures)
+- Integration Setup code snippets
+- Capability Priority Order
+- Deferred Features list
+- Workflow Rules
+- Start-of-Session Checklist
+- UI/Design palette + typography
+
+**Always:**
+- Every CLAUDE.md change, Tier 1 or Tier 2, gets explicitly listed in the final summary with a line per change. No silent edits.
+- Preserve existing phrasing where not changed. Do not soften warnings, do not "polish" prose, do not consolidate.
+- If a change feels like it belongs to Tier 2 but is also genuinely necessary for the task to make sense, do the edit AND surface it prominently in the final report so Markus can review.
+
 ## Architecture & Data Flow
 
 Each external system owns one slice of truth. The app never duplicates that truth into its own database.
@@ -120,10 +175,10 @@ Framework:
 - **shadcn/ui** (`shadcn` ^4.7.0) with the **Nova preset** — built on `radix-ui` ^1.4.3, `lucide-react` ^1.16.0 icons, and Geist fonts. Theme tokens via CSS variables in [app/globals.css](app/globals.css). Base color: neutral.
 - Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes`, `sonner`
 
-View libraries (add when the relevant tab is built — not pre-installed):
-- **TanStack Table** (`@tanstack/react-table`) — Projects table view
-- **dnd-kit** (`@dnd-kit/core`, `@dnd-kit/sortable`) — Projects Kanban drag-and-drop
-- **FullCalendar React** (`@fullcalendar/react` + adapters) — Projects deadline view and Calendar tab
+View libraries (installed when first used; add new ones the same way):
+- **TanStack Table** (`@tanstack/react-table` ^8.21.3) — Projects table view
+- **dnd-kit** (`@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0) — Projects Kanban drag-and-drop
+- **FullCalendar React** (`@fullcalendar/react` + `@fullcalendar/core` + `@fullcalendar/daygrid` + `@fullcalendar/interaction`, all ^6.1.20) — Projects deadline view (+ Tab 3 Calendar mirror). `interaction` plugin is required for drag-to-reschedule.
 
 SDKs:
 - `@notionhq/client` ^5.21.0 — PARA reads/writes
@@ -166,14 +221,14 @@ Off-limits until Markus asks for them by name. Do not suggest as "nice to have",
 
 Every value below lives in a constants file. Never hardcode a table name, route, model ID, area name, priority, or user-facing string anywhere else in the codebase.
 
-**Status: none of these files exist yet.** This is intentional — they get created when the first feature actually needs them, not pre-scaffolded with empty exports. When you add the first constant to a file, create the file with that constant; do not create empty placeholder files.
+Files are created with `.ts` extension (TypeScript project) when a feature first needs them. Do not pre-scaffold empty placeholder files.
 
-- `constants/tables.js` — **NOT YET CREATED.** Every Supabase table name. Imported by every query.
-- `constants/routes.js` — **NOT YET CREATED.** Every app route (both internal page paths and external API endpoints).
-- `constants/models.js` — **NOT YET CREATED.** Anthropic model IDs. Model upgrades must be a one-line change here.
-- `constants/translations.js` — **NOT YET CREATED.** DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
-- `constants/areas.js` — **NOT YET CREATED.** Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal.
-- `constants/priorities.js` — **NOT YET CREATED.** High, Medium, Low.
+- `constants/tables.ts` — **CREATED.** Every Supabase table name. Currently exports `TABLES.GOOGLE_OAUTH_TOKENS`. Imported by every Supabase query.
+- `constants/routes.ts` — **NOT YET CREATED.** Every app route (both internal page paths and external API endpoints).
+- `constants/models.ts` — **NOT YET CREATED.** Anthropic model IDs. Model upgrades must be a one-line change here.
+- `constants/translations.ts` — **CREATED.** DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
+- `constants/areas.ts` — **CREATED.** Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal + `Area` type.
+- `constants/priorities.ts` — **CREATED.** High / Medium / Low + `Priority` type; Active / On Hold / Done + `Status` type.
 
 ### Supabase
 
@@ -409,7 +464,7 @@ NOTION_RESOURCES_DB_ID=       # 32-char hex of the Resources database (added whe
 # Google Calendar — OAuth2 web app credentials
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=          # e.g. http://localhost:3000/api/google/callback
+GOOGLE_REDIRECT_URI=          # e.g. http://localhost:3000/api/auth/callback/google
 
 # Zoho Books — self-service refresh-token flow
 ZOHO_CLIENT_ID=
@@ -583,39 +638,67 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 
 **Bootstrap date:** 2026-05-15
 
-**Confirmed in place:**
-- Next.js 16.2.6 app scaffolded with App Router, TypeScript, Tailwind v4 (PostCSS plugin, no `tailwind.config.js`)
-- shadcn/ui initialized with the **Nova preset** (`style: "radix-nova"`, `baseColor: "neutral"`, `iconLibrary: "lucide"`). Components installed in [components/ui/](components/ui/): `badge`, `button`, `card`, `dialog`, `input`, `select`, `separator`, `sonner`, `tabs`
-- All SDK dependencies installed: `@notionhq/client`, `@anthropic-ai/sdk`, `@supabase/supabase-js`, `googleapis`, `axios`
-- `.env.local` populated with all secrets (Notion, Google, Zoho, Supabase, Anthropic) — not committed
-- PARA structure exists in Notion with Projects and Inbox databases (IDs in `.env.local`)
-- `lib/` directory exists with `lib/utils.ts` from the shadcn init; no integration files yet
+**Stack & scaffold:**
+- Next.js 16.2.6 (App Router) + React 19.2.4 + TypeScript 5 + Tailwind v4 (PostCSS plugin, no `tailwind.config.js`).
+- shadcn/ui with the **Nova preset** (`style: "radix-nova"`, `baseColor: "neutral"`, `iconLibrary: "lucide"`). Components in [components/ui/](components/ui/): `badge`, `button`, `card`, `dialog`, `input`, `select`, `separator`, `sheet`, `sonner`, `tabs`.
+- Fonts: Geist Sans + Geist Mono via `next/font/google` (variables `--font-geist-sans` / `--font-geist-mono`, aliased to `--font-sans` / `--font-mono` in [app/globals.css](app/globals.css) `:root` so Tailwind v4's default `--font-sans: var(--font-sans)` self-reference is bypassed).
+- Palette (blue/white/ink) tuned in [app/globals.css](app/globals.css) via OKLCH tokens on `:root`. Dark mode block exists but no `next-themes` provider mounted — light only at runtime.
+
+**Dependencies installed:**
+- SDKs: `@notionhq/client` ^5.21.0, `@anthropic-ai/sdk` ^0.96.0, `@supabase/supabase-js` ^2.105.4, `googleapis` ^171.4.0, `axios` ^1.16.1.
+- View libs: `@tanstack/react-table` ^8.21.3, `@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0, `@fullcalendar/{react,core,daygrid,interaction}` all ^6.1.20.
+- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0.
+
+**Secrets & external systems:**
+- `.env.local` populated with Notion, Google, Zoho, Supabase, Anthropic secrets (not committed).
+- PARA structure in Notion with Projects + Inbox databases (IDs in `.env.local`).
+- Supabase project provisioned; `supabase/migrations/` directory exists with first migration (`20260515120000_google_oauth_tokens.sql`) and `MIGRATION_LOG.md`. **Migration must be run manually by Markus** (Supabase Dashboard SQL editor or `supabase db push`).
+
+**App layout & i18n:**
+- Top nav with 6-tab switcher (`Projects`/`Digest`/`Calendar`/`Clients`/`Areas`/`Resources`) + DE/EN `LocaleToggle` (DE default, persisted as `bh.locale` in localStorage) + Google "Connect" affordance (visible only when not connected).
+- All UI strings in [constants/translations.ts](constants/translations.ts).
+
+**Library files (server-only marked with `import "server-only"`):**
+- [lib/notion.ts](lib/notion.ts) — `listActiveProjects`, `updateProjectField` (6 fields: Status, Priority, Name, Area, Due Date, Next Action), `createProject`, `getPageBlocks` (one-level child recursion). Exports `Project`, `ProjectDraft`, `UpdateField`, `NotionBlock`, `NotionRichText`, `NotionAnnotations` types.
+- [lib/supabase-server.ts](lib/supabase-server.ts) — `supabaseServer()` factory using service role key.
+- [lib/google.ts](lib/google.ts) — `getOAuthClient`, `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken` (auto-refresh within 5 min of expiry), `getAuthorizedCalendarClient`, `isGoogleConnected`, `disconnectGoogle`. Tokens persisted to `google_oauth_tokens` (`user_key='markus'`).
+- [lib/i18n.tsx](lib/i18n.tsx) — `LocaleProvider`, `useLocale`, `useT`, `t` helper.
+
+**Route handlers (all server, never return tokens to client):**
+- `/api/projects/update`, `/api/projects/create`, `/api/projects/blocks` — Notion updates / page creation / page-body fetch.
+- `/api/google/connect` — 302 to Google consent URL (scope: `auth/calendar`, `access_type=offline`, `prompt=consent`).
+- `/api/auth/callback/google` — OAuth callback; exchanges code, persists tokens, redirects to `/settings/google-connected` (or `/settings/google-error?reason=…`).
+- `/api/google/status` — `{ connected: boolean }`. Returns `false` if the table doesn't exist yet (pre-migration safety).
+
+**Pages:**
+- `/` redirects to `/projects`.
+- `/projects` — Tab 1, fully built (see below).
+- `/digest`, `/calendar`, `/clients`, `/areas`, `/resources` — placeholder "coming soon" pages.
+- `/settings/google-connected`, `/settings/google-error` — OAuth flow landings.
+
+**Tab 1 (Projects) — complete:**
+- Three view modes — Table (TanStack), Kanban (dnd-kit, grouped by Status, drag-drop writes Status; Priority shown as pill), Calendar (FullCalendar `dayGridMonth` + `interaction` plugin, drag-to-reschedule writes Due Date).
+- View toggle top-left, persisted in `bh.projects.view` localStorage.
+- Status / Area / Priority filters at tab level — apply to all three views.
+- Inline edit in Table for Status, Area, Priority, Due Date, Next Action; Name edit happens in drawer.
+- Detail drawer (shadcn Sheet, 720px): compact metadata zone with editable Name heading + 9 metadata rows; read-only Notion page body rendered by [app/projects/_components/PageBodyRenderer.tsx](app/projects/_components/PageBodyRenderer.tsx) (paragraph, heading_1/2/3, bulleted/numbered list with one-level children, to_do, quote, callout, code, divider, toggle; bold/italic/strikethrough/code/link rich-text; loading/empty/error states).
+- Add Project dialog (shadcn Dialog) — Name + Area required validation; defaults: Status=Active, Priority=Medium.
+- Optimistic UI on all writes with sonner toast + revert on failure.
+
+**Google OAuth — scaffolded, not yet exercised:**
+- Code path works end-to-end on paper. Awaiting (a) Markus running the migration, (b) Markus clicking "Connect Google" in the top nav once to grant consent.
+- After that, `getAccessToken()` / `getAuthorizedCalendarClient()` are ready for Tab 2 and Tab 3.
 
 **Not yet built:**
-- Any tab from the Capability Priority Order
-- Any of the six `constants/*.js` files
-- Any integration code under `lib/` (no `lib/notion.ts`, `lib/anthropic.ts`, etc.)
-- Any Supabase tables or migrations (`supabase/` directory does not exist)
-- Any agents or sub-agents
-- TanStack Table, dnd-kit, FullCalendar React not yet installed
-- Locale toggle / `useLocale()` hook / `LocaleToggle` component
-- Top nav with 6-tab switcher
-- Notion Areas and Resources DBs (will be added when Tabs 5 and 6 build)
+- Tabs 2–6 (AI Digest, Calendar mirror, Clients, Areas, Resources) — placeholders only.
+- `constants/routes.ts`, `constants/models.ts` (created when first feature needs them).
+- Integration libs: `lib/anthropic.ts`, `lib/zoho.ts`.
+- Supabase tables beyond `google_oauth_tokens` (and that table only after Markus runs the migration).
+- Any agents or sub-agents.
+- Notion Areas and Resources DBs (added when Tabs 5 and 6 build).
+- RLS on `google_oauth_tokens` (currently relying on service-role-only access).
 
-**Today's plan (2026-05-15):**
-Tab 1 (Projects) end-to-end with all three view modes:
-1. `lib/notion.ts` — read Active projects, update Status/Priority
-2. `constants/translations.js` — DE/EN entries for Projects tab + nav
-3. `useLocale()` hook + `<LocaleToggle />` in top nav (DE default, localStorage-persisted)
-4. Top nav with 6 tab links (only Projects routes to a real page; others are placeholders)
-5. Projects Table view (TanStack Table) — sortable, filterable, inline edit Status + Priority
-6. Projects Kanban view (dnd-kit) — three columns by Priority, drag-drop writes to Notion
-7. Projects Calendar view (FullCalendar React) — projects on Due Date, sidebar for no-deadline
-8. View toggle (segmented control, localStorage-persisted)
-
-Accepted risk: 3 views in one day is aggressive. Markus explicitly chose this scope after pushback.
-
-**Next planned step after today:** Tab 2 — AI Digest.
+**Next planned step:** Tab 2 — AI Digest. Will create `constants/models.ts` + `lib/anthropic.ts` and the `briefings` Supabase table (second migration).
 
 ## Start-of-Session Checklist
 
