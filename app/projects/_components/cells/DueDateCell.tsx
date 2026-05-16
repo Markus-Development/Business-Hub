@@ -29,7 +29,7 @@ export function DueDateCell({ value, onSave, dateFormatter }: Props) {
         onKeyDown={(e) => {
           if (e.key === "Escape") setEditing(false);
         }}
-        className="h-8 w-[150px] rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-9 w-[150px] rounded-md border border-input bg-background px-2 font-sans text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       />
     );
   }
@@ -50,8 +50,8 @@ export function DueDateCell({ value, onSave, dateFormatter }: Props) {
       type="button"
       onClick={() => setEditing(true)}
       className={cn(
-        "block w-full rounded px-1.5 py-1 text-left transition-colors hover:bg-muted",
-        value ? "font-mono text-xs text-muted-foreground" : "text-xs text-muted-foreground/70",
+        "block h-9 w-[150px] rounded px-1.5 text-left font-sans text-sm leading-9 transition-colors hover:bg-muted",
+        value ? "text-foreground" : "text-muted-foreground/70",
       )}
     >
       {label}

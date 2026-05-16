@@ -33,6 +33,7 @@ import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
 import { AREAS } from "@/constants/areas";
+import { ROUTES } from "@/constants/routes";
 import type { NotionBlock, Project } from "@/lib/notion";
 import type { UpdateField } from "./api";
 
@@ -337,7 +338,7 @@ function PageBody({ pageId, notionUrl }: { pageId: string; notionUrl: string }) 
     const ac = new AbortController();
     setState("loading");
     setBlocks([]);
-    fetch(`/api/projects/blocks?pageId=${encodeURIComponent(pageId)}`, { signal: ac.signal })
+    fetch(ROUTES.api.projects.blocks(pageId), { signal: ac.signal })
       .then((r) => r.json())
       .then((j) => {
         if (ac.signal.aborted) return;

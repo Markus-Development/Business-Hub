@@ -1,0 +1,168 @@
+/*
+ * Google-Calendar-style overrides for FullCalendar.
+ * Scoped to .bh-calendar so these never bleed into the Projects tab's FullCalendar.
+ * Loaded only by app/calendar/page.tsx.
+ *
+ * FullCalendar exposes :root CSS variables (--fc-*) for many things and falls back
+ * to its own rules for the rest; we override both where needed.
+ */
+
+.bh-calendar {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--card);
+  --fc-now-indicator-color: var(--primary);
+  --fc-today-bg-color: color-mix(in oklch, var(--primary) 6%, transparent);
+}
+
+/* Hide FullCalendar's own toolbar — we render a custom one in the component. */
+.bh-calendar .fc-header-toolbar {
+  display: none !important;
+}
+
+/* All-day row off — the app doesn't use all-day events. */
+.bh-calendar .fc-timegrid-axis-frame,
+.bh-calendar .fc-timegrid-divider,
+.bh-calendar .fc-daygrid-day.fc-day-other {
+  /* no-op holder for future hooks */
+}
+.bh-calendar .fc-timegrid-allday,
+.bh-calendar .fc-day-grid-event,
+.bh-calendar .fc-daygrid-day-events.fc-allday {
+  display: none !important;
+}
+.bh-calendar .fc-scrollgrid-section.fc-scrollgrid-section-header .fc-timegrid-axis {
+  /* keep header axis cell empty rather than show 'all-day' text */
+}
+.bh-calendar .fc-timegrid-axis,
+.bh-calendar .fc-timegrid-axis-cushion {
+  font-size: 0;
+}
+.bh-calendar .fc-timegrid-slot-label-cushion {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding-right: 6px;
+}
+
+/* Slot height — 48px per hour. FullCalendar splits each hour into 2 slots of 24px. */
+.bh-calendar .fc-timegrid-slot {
+  height: 24px;
+}
+.bh-calendar .fc-timegrid-slot-minor {
+  border-top-style: dashed;
+  border-top-color: color-mix(in oklch, var(--border) 60%, transparent);
+}
+
+/* Column headers (day names + date numbers). */
+.bh-calendar .fc-col-header-cell {
+  padding: 6px 4px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.bh-calendar .fc-col-header-cell-cushion {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  color: var(--muted-foreground);
+  text-decoration: none !important;
+}
+.bh-calendar .fc-col-header-cell-cushion::first-line {
+  /* the first-line trick doesn't reliably split day-name from date-number; we instead
+     rely on FullCalendar's default content. Style the inner spans below. */
+}
+.bh-calendar .fc-col-header-cell .fc-col-header-cell-cushion {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+/* Date number sits inline with the day-name label in FullCalendar's default. To get
+   the Google-style two-line look we split via flex-direction:column above and bump
+   the date-number rendering. Today gets the filled circle. */
+.bh-calendar .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: var(--primary);
+}
+
+/* Events: flat primary-coloured blocks, 4px radius, 12px white text. */
+.bh-calendar .fc-timegrid-event,
+.bh-calendar .fc-daygrid-event {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  box-shadow: none;
+  --fc-event-bg-color: var(--primary);
+  --fc-event-text-color: var(--primary-foreground);
+  --fc-event-border-color: var(--primary);
+}
+.bh-calendar .fc-event-title,
+.bh-calendar .fc-event-time {
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bh-calendar .fc-event-time {
+  margin-right: 4px;
+  opacity: 0.85;
+}
+.bh-calendar .fc-event:hover {
+  filter: brightness(0.95);
+}
+
+/* Pending time-block suggestion events get a muted background — they're proposed,
+   not committed. The CalendarView component prefixes the title with ⏳. */
+.bh-calendar .fc-event.bh-pending-event {
+  background: var(--muted) !important;
+  color: var(--muted-foreground) !important;
+  --fc-event-bg-color: var(--muted);
+  --fc-event-text-color: var(--muted-foreground);
+  --fc-event-border-color: var(--border);
+  border: 1px dashed var(--border);
+}
+
+/* Now indicator: thin primary line with a dot on the leading edge. */
+.bh-calendar .fc-timegrid-now-indicator-line {
+  border-top-width: 2px;
+  border-color: var(--primary);
+}
+.bh-calendar .fc-timegrid-now-indicator-arrow {
+  display: none; /* hide FC's default triangle */
+}
+.bh-calendar .fc-timegrid-now-indicator-line::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--primary);
+}
+
+/* General chrome cleanup — kill FullCalendar's default button styling so any stray
+   buttons (e.g. dayGridMonth's "more" link) don't clash. */
+.bh-calendar .fc-button,
+.bh-calendar .fc-button-primary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  box-shadow: none;
+  text-transform: none;
+}
+.bh-calendar .fc-button-primary:not(:disabled):hover {
+  background: var(--accent);
+}
+
+/* Today background tint is already wired via --fc-today-bg-color above, but
+   FullCalendar applies it to time-grid slots only. Carry it to the day-grid
+   variant too for the month view. */
+.bh-calendar .fc-daygrid-day.fc-day-today {
+  background: var(--fc-today-bg-color);
+}

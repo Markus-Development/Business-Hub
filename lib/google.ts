@@ -121,6 +121,166 @@ export async function getAuthorizedCalendarClient() {
   return google.calendar({ version: "v3", auth: client });
 }
 
+export type GoogleCalendar = { id: string; summary: string; primary: boolean };
+
+export async function listCalendars(): Promise<GoogleCalendar[]> {
+  const calendar = await getAuthorizedCalendarClient();
+  const resp = await calendar.calendarList.list();
+  const items = resp.data.items ?? [];
+  return items
+    .filter((c): c is { id: string; summary?: string | null; primary?: boolean | null } =>
+      typeof c.id === "string" && c.id.length > 0,
+    )
+    .map((c) => ({
+      id: c.id,
+      summary: c.summary ?? c.id,
+      primary: c.primary === true,
+    }));
+}
+
+export type BusyInterval = { start: string; end: string };
+
+export async function getPrimaryBusy(
+  timeMin: string,
+  timeMax: string,
+  calendarId: string = "primary",
+): Promise<BusyInterval[]> {
+  const calendar = await getAuthorizedCalendarClient();
+  const resp = await calendar.freebusy.query({
+    requestBody: { timeMin, timeMax, items: [{ id: calendarId }] },
+  });
+  const busy = resp.data.calendars?.[calendarId]?.busy ?? [];
+  return busy
+    .filter((b): b is { start: string; end: string } => !!b.start && !!b.end)
+    .map((b) => ({ start: b.start, end: b.end }));
+}
+
+export type CreatedEvent = { id: string; htmlLink: string | null };
+
+export async function createBlock(
+  summary: string,
+  startIso: string,
+  endIso: string,
+  calendarId: string = "primary",
+): Promise<CreatedEvent> {
+  const calendar = await getAuthorizedCalendarClient();
+  const resp = await calendar.events.insert({
+    calendarId,
+    requestBody: {
+      summary,
+      start: { dateTime: startIso },
+      end: { dateTime: endIso },
+    },
+  });
+  const id = resp.data.id;
+  if (!id) throw new Error("Google Calendar insert returned no event id");
+  return { id, htmlLink: resp.data.htmlLink ?? null };
+}
+
+export type CalendarEvent = {
+  id: string;
+  summary: string;
+  description: string | null;
+  start: string | null;
+  end: string | null;
+  htmlLink: string | null;
+};
+
+function readEventTime(slot: { dateTime?: string | null; date?: string | null } | undefined): string | null {
+  if (!slot) return null;
+  return slot.dateTime ?? slot.date ?? null;
+}
+
+export async function listEvents(
+  calendarId: string,
+  start: string,
+  end: string,
+): Promise<CalendarEvent[]> {
+  const calendar = await getAuthorizedCalendarClient();
+  const resp = await calendar.events.list({
+    calendarId,
+    timeMin: start,
+    timeMax: end,
+    singleEvents: true,
+    orderBy: "startTime",
+  });
+  const items = resp.data.items ?? [];
+  return items
+    .filter((e): e is { id: string } & typeof e => typeof e.id === "string" && e.id.length > 0)
+    .map((e) => ({
+      id: e.id,
+      summary: e.summary ?? "(no title)",
+      description: e.description ?? null,
+      start: readEventTime(e.start ?? undefined),
+      end: readEventTime(e.end ?? undefined),
+      htmlLink: e.htmlLink ?? null,
+    }));
+}
+
+export type CreateEventPayload = {
+  summary: string;
+  description?: string;
+  start: string;
+  end: string;
+  notionProjectId?: string;
+};
+
+export async function createEvent(
+  calendarId: string,
+  payload: CreateEventPayload,
+): Promise<CreatedEvent> {
+  const calendar = await getAuthorizedCalendarClient();
+  const requestBody: Record<string, unknown> = {
+    summary: payload.summary,
+    start: { dateTime: payload.start },
+    end: { dateTime: payload.end },
+  };
+  if (typeof payload.description === "string" && payload.description.length > 0) {
+    requestBody.description = payload.description;
+  }
+  if (typeof payload.notionProjectId === "string" && payload.notionProjectId.length > 0) {
+    requestBody.extendedProperties = {
+      private: { notionProjectId: payload.notionProjectId },
+    };
+  }
+  const resp = await calendar.events.insert({ calendarId, requestBody });
+  const id = resp.data.id;
+  if (!id) throw new Error("Google Calendar insert returned no event id");
+  return { id, htmlLink: resp.data.htmlLink ?? null };
+}
+
+export type UpdateEventPatch = {
+  summary?: string;
+  description?: string;
+  start?: string;
+  end?: string;
+};
+
+export async function updateEvent(
+  calendarId: string,
+  eventId: string,
+  patch: UpdateEventPatch,
+): Promise<CreatedEvent> {
+  const calendar = await getAuthorizedCalendarClient();
+  const requestBody: Record<string, unknown> = {};
+  if (typeof patch.summary === "string") requestBody.summary = patch.summary;
+  if (typeof patch.description === "string") requestBody.description = patch.description;
+  if (typeof patch.start === "string") requestBody.start = { dateTime: patch.start };
+  if (typeof patch.end === "string") requestBody.end = { dateTime: patch.end };
+  const resp = await calendar.events.patch({
+    calendarId,
+    eventId,
+    requestBody,
+  });
+  const id = resp.data.id ?? eventId;
+  return { id, htmlLink: resp.data.htmlLink ?? null };
+}
+
+export async function deleteEvent(calendarId: string, eventId: string): Promise<void> {
+  const calendar = await getAuthorizedCalendarClient();
+  await calendar.events.delete({ calendarId, eventId });
+}
+
 export async function isGoogleConnected(): Promise<boolean> {
   const row = await readTokenRow();
   return !!row?.refresh_token;

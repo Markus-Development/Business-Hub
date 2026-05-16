@@ -4,6 +4,12 @@ import type { Priority, Status } from "@/constants/priorities";
 
 export const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
+// Lightweight health check — verifies the token by calling users.me().
+export async function pingNotion(): Promise<{ name: string | null }> {
+  const me = (await notion.users.me({})) as unknown as { name?: string | null };
+  return { name: me.name ?? null };
+}
+
 export type Project = {
   id: string;
   url: string;
@@ -77,6 +83,11 @@ function asDate(prop: any): string | null {
 function asNumber(prop: any): number | null {
   if (!prop || prop.type !== "number") return null;
   return prop.number ?? null;
+}
+function asUrl(prop: any): string | null {
+  if (!prop || prop.type !== "url") return null;
+  const v = prop.url;
+  return typeof v === "string" && v.length > 0 ? v : null;
 }
 
 function toProject(page: any): Project {
@@ -210,6 +221,224 @@ export async function getPageBlocks(pageId: string): Promise<NotionBlock[]> {
     }
   }
   return top;
+}
+
+export type SelectOption = { id: string; name: string; color: string | null };
+
+// Fetches the Projects data-source schema and returns the options of a `select` or `status`
+// property. For `status` props the API exposes options nested under `groups[].options`; we
+// flatten across groups so callers don't need to care about grouping.
+// Returns `null` when the property is absent OR is neither `select` nor `status`. The caller
+// surfaces a helpful empty state in that case (e.g. Settings UI asks Markus to add it).
+export async function fetchSelectOptions(propertyName: string): Promise<SelectOption[] | null> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const ds = (await notion.dataSources.retrieve({
+    data_source_id: dataSourceId,
+  })) as unknown as {
+    properties?: Record<
+      string,
+      {
+        type: string;
+        select?: { options?: SelectOption[] };
+        status?: {
+          options?: SelectOption[];
+          groups?: { name: string; option_ids: string[] }[];
+        };
+      }
+    >;
+  };
+  const prop = ds.properties?.[propertyName];
+  if (!prop) return null;
+  if (prop.type === "select") return prop.select?.options ?? [];
+  if (prop.type === "status") {
+    // Notion exposes the full option list at status.options (each carrying its own color).
+    // groups[].option_ids only references them — we don't need the grouping for badge colour.
+    return prop.status?.options ?? [];
+  }
+  return null;
+}
+
+// ===== Clients DB ==========================================================
+// The Clients DB is created manually by Markus in Notion (see CLAUDE.md PARA
+// section). NOTION_CLIENTS_DB_ID must be set in .env.local. Missing env or
+// missing properties fail loudly at runtime — preferable to silent empty results.
+
+export type NotionClient = {
+  pageId: string;
+  url: string;
+  name: string;
+  zohoContactId: string;
+  industry: string | null;
+  employees: number | null;
+  monthlyRevenue: number | null;
+  callNotesLink: string | null;
+  clientDatabaseLink: string | null;
+  dashboardLink: string | null;
+};
+
+export type ClientUpdateField =
+  | "Industry"
+  | "Employees"
+  | "Monthly Revenue"
+  | "Call Notes Link"
+  | "Client Database Link"
+  | "Dashboard Link";
+
+let clientsDataSourceId: string | null = null;
+
+async function getClientsDataSourceId(): Promise<string> {
+  if (clientsDataSourceId) return clientsDataSourceId;
+  const dbId = process.env.NOTION_CLIENTS_DB_ID;
+  if (!dbId) throw new Error("NOTION_CLIENTS_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Clients DB has no data_sources — is the integration shared with the database?");
+  clientsDataSourceId = ds.id;
+  return ds.id;
+}
+
+function toClient(page: any): NotionClient {
+  const p = page.properties as Record<string, unknown>;
+  return {
+    pageId: page.id,
+    url: page.url,
+    name: asTitle(requireProp(p, "Name")),
+    zohoContactId: asRichText(requireProp(p, "Zoho Contact ID")).trim(),
+    industry: asSelect(requireProp(p, "Industry")),
+    employees: asNumber(requireProp(p, "Employees")),
+    monthlyRevenue: asNumber(requireProp(p, "Monthly Revenue")),
+    callNotesLink: asUrl(requireProp(p, "Call Notes Link")),
+    clientDatabaseLink: asUrl(requireProp(p, "Client Database Link")),
+    dashboardLink: asUrl(requireProp(p, "Dashboard Link")),
+  };
+}
+
+export async function listNotionClients(): Promise<NotionClient[]> {
+  const dataSourceId = await getClientsDataSourceId();
+  const clients: NotionClient[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        clients.push(toClient(page));
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return clients;
+}
+
+// Same block tree shape as Projects. Re-exported under a Client-named alias so callers
+// signal intent at the call site; the implementation is the shared getPageBlocks helper.
+export async function getClientPageBlocks(pageId: string): Promise<NotionBlock[]> {
+  return getPageBlocks(pageId);
+}
+
+function buildClientPropertyBody(
+  field: ClientUpdateField,
+  value: unknown,
+): Record<string, any> {
+  switch (field) {
+    case "Industry":
+      if (value !== null && typeof value !== "string") {
+        throw new Error("Industry value must be string or null");
+      }
+      return { Industry: { type: "select", select: value ? { name: value } : null } };
+    case "Employees":
+      if (value !== null && typeof value !== "number") {
+        throw new Error("Employees value must be number or null");
+      }
+      return { Employees: { type: "number", number: value as number | null } };
+    case "Monthly Revenue":
+      if (value !== null && typeof value !== "number") {
+        throw new Error("Monthly Revenue value must be number or null");
+      }
+      return { "Monthly Revenue": { type: "number", number: value as number | null } };
+    case "Call Notes Link":
+    case "Client Database Link":
+    case "Dashboard Link": {
+      if (value !== null && typeof value !== "string") {
+        throw new Error(`${field} value must be string or null`);
+      }
+      const url = typeof value === "string" && value.length > 0 ? value : null;
+      return { [field]: { type: "url", url } };
+    }
+  }
+}
+
+export async function updateClientField(
+  pageId: string,
+  field: ClientUpdateField,
+  value: unknown,
+): Promise<void> {
+  const properties = buildClientPropertyBody(field, value);
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
+}
+
+// ===== Projects scoped to a client =========================================
+
+// Filters the Projects DB to rows whose `Client` rich_text contains `clientName`.
+// Lightweight join used by the Clients tab — both for "this month's tasks" display
+// and for the generate-tasks idempotency check.
+export async function listProjectsByClient(clientName: string): Promise<Project[]> {
+  if (clientName.trim().length === 0) return [];
+  const dataSourceId = await getProjectsDataSourceId();
+  const projects: Project[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: { property: "Client", rich_text: { contains: clientName } },
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        projects.push(toProject(page));
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return projects;
+}
+
+// Creates a Project page in the Notion Projects DB with arbitrary client + due date.
+// Wider input surface than `createProject` (which is fed by the Projects tab dialog
+// and never sets `Client`). Used by the Clients tab to spawn this-month tasks.
+export async function createClientProject(input: {
+  name: string;
+  client: string;
+  status: Status;
+  area: string;
+  priority: Priority;
+  dueDate: string | null;
+}): Promise<Project> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const properties = {
+    ...buildPropertyBody("Name", input.name),
+    ...buildPropertyBody("Status", input.status),
+    ...buildPropertyBody("Area", input.area),
+    ...buildPropertyBody("Priority", input.priority),
+    ...buildPropertyBody("Due Date", input.dueDate),
+    Client: {
+      type: "rich_text",
+      rich_text: input.client
+        ? [{ type: "text", text: { content: input.client } }]
+        : [],
+    },
+  };
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  return toProject(page);
 }
 
 export async function createProject(draft: ProjectDraft): Promise<Project> {

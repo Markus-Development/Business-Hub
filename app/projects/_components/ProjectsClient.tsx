@@ -21,7 +21,8 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
 import { AREAS } from "@/constants/areas";
-import type { Project } from "@/lib/notion";
+import { ROUTES } from "@/constants/routes";
+import type { Project, SelectOption } from "@/lib/notion";
 
 const VIEW_STORAGE_KEY = "bh.projects.view";
 type View = "table" | "kanban" | "calendar";
@@ -49,6 +50,9 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
+  const [statusOptions, setStatusOptions] = useState<SelectOption[]>([]);
+  const [areaOptions, setAreaOptions] = useState<SelectOption[]>([]);
+
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
@@ -56,6 +60,27 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
         setView(stored as View);
       }
     } catch {}
+  }, []);
+
+  // Notion Status + Area option lists, including each option's `color`. Used by the
+  // table cells to paint a coloured left-border on the badge that matches the option
+  // colour set in Notion. Failure is non-fatal — cells fall back to the muted default.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(ROUTES.api.projects.options, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`http_${r.status}`))))
+      .then((body: { status?: SelectOption[]; area?: SelectOption[] }) => {
+        if (cancelled) return;
+        setStatusOptions(body.status ?? []);
+        setAreaOptions(body.area ?? []);
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn("projects_options_load_failed", err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -209,6 +234,8 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
           items={filteredItems}
           onUpdate={handleUpdate}
           onOpenProject={openProject}
+          statusOptions={statusOptions}
+          areaOptions={areaOptions}
         />
       )}
 

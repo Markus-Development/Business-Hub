@@ -1,5 +1,7 @@
-import { ComingSoon } from "@/app/_components/ComingSoon";
+import { ClientsView } from "./_components/ClientsView";
+
+export const dynamic = "force-dynamic";
 
 export default function ClientsPage() {
-  return <ComingSoon titleKey="nav.clients" />;
+  return <ClientsView />;
 }

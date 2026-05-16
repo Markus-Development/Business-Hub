@@ -35,7 +35,7 @@ export function NextActionCell({ value, onSave }: Props) {
             setEditing(false);
           }
         }}
-        className="h-8 w-full max-w-[32ch] rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-9 w-full max-w-[32ch] rounded-md border border-input bg-background px-2 font-sans text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       />
     );
   }
@@ -44,7 +44,7 @@ export function NextActionCell({ value, onSave }: Props) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="block w-full max-w-[32ch] truncate rounded px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+      className="block h-9 w-full max-w-[32ch] truncate rounded px-1.5 text-left font-sans text-sm leading-9 text-foreground transition-colors hover:bg-muted"
       title={value}
     >
       {value || <span className="text-muted-foreground/70">{t("projects.cell.addNextAction")}</span>}

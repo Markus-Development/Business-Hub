@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { ROUTES } from "@/constants/routes";
 
 export default function GoogleConnectedPage() {
   const t = useT();
@@ -15,7 +16,7 @@ export default function GoogleConnectedPage() {
         <h1 className="text-xl font-semibold text-foreground">{t("google.connected.title")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("google.connected.body")}</p>
         <Link
-          href="/projects"
+          href={ROUTES.pages.projects}
           className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
           {t("google.connected.back")}

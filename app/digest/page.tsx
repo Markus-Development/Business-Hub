@@ -1,5 +1,13 @@
-import { ComingSoon } from "@/app/_components/ComingSoon";
+import { DailyDigest } from "./_components/DailyDigest";
+import { TimeBlockSuggestions } from "./_components/TimeBlockSuggestions";
+
+export const dynamic = "force-dynamic";
 
 export default function DigestPage() {
-  return <ComingSoon titleKey="nav.digest" />;
+  return (
+    <>
+      <DailyDigest />
+      <TimeBlockSuggestions />
+    </>
+  );
 }

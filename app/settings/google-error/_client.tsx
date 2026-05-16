@@ -2,6 +2,7 @@
 
 import { TriangleAlert } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { ROUTES } from "@/constants/routes";
 
 export function GoogleErrorClient({ reason }: { reason: string }) {
   const t = useT();
@@ -14,7 +15,7 @@ export function GoogleErrorClient({ reason }: { reason: string }) {
         <h1 className="text-xl font-semibold text-foreground">{t("google.error.title")}</h1>
         <p className="mt-2 break-words text-sm text-muted-foreground">{reason}</p>
         <a
-          href="/api/google/connect"
+          href={ROUTES.api.google.connect}
           className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
           {t("google.error.retry")}

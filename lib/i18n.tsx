@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   DEFAULT_LOCALE,
   LOCALES,
@@ -52,5 +52,5 @@ export function t(key: TranslationKey, locale: Locale): string {
 
 export function useT(): (key: TranslationKey) => string {
   const [locale] = useLocale();
-  return (key) => t(key, locale);
+  return useCallback((key: TranslationKey) => t(key, locale), [locale]);
 }

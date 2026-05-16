@@ -17,24 +17,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AreaCell } from "./cells/AreaCell";
 import { DueDateCell } from "./cells/DueDateCell";
 import { NextActionCell } from "./cells/NextActionCell";
+import { OptionBadgeSelect } from "./cells/OptionBadgeSelect";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { PRIORITIES, STATUSES, type Priority } from "@/constants/priorities";
-import type { Project } from "@/lib/notion";
+import { PRIORITIES, type Priority } from "@/constants/priorities";
+import { AREAS } from "@/constants/areas";
+import type { Project, SelectOption } from "@/lib/notion";
+import type { TranslationKey } from "@/constants/translations";
 import type { UpdateField } from "./api";
 
 type Props = {
   items: Project[];
   onUpdate: (pageId: string, field: UpdateField, value: string | null) => void;
   onOpenProject: (pageId: string) => void;
+  statusOptions: SelectOption[];
+  areaOptions: SelectOption[];
 };
 
 const PRIORITY_ORDER: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
 
-export function ProjectsTable({ items, onUpdate, onOpenProject }: Props) {
+export function ProjectsTable({
+  items,
+  onUpdate,
+  onOpenProject,
+  statusOptions,
+  areaOptions,
+}: Props) {
   const t = useT();
   const [locale] = useLocale();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -49,6 +59,35 @@ export function ProjectsTable({ items, onUpdate, onOpenProject }: Props) {
     [locale],
   );
 
+  // Badge options for the Status column. Use the translated label when the Notion
+  // option name matches one of our enumerated Status values (i.e. has a
+  // `status.<name>` key); otherwise show the raw Notion name. The raw name stays
+  // the option value so writes round-trip cleanly with Notion's schema.
+  const statusBadgeOptions = useMemo(
+    () =>
+      statusOptions.map((o) => {
+        const key = `status.${o.name}` as TranslationKey;
+        const translated = t(key);
+        // useT() returns the key itself when no entry exists — fall back to the raw name.
+        const label = translated && translated !== key ? translated : o.name;
+        return { value: o.name, label, color: o.color };
+      }),
+    [statusOptions, t],
+  );
+
+  // Badge options for the Area column. If Notion hasn't returned the option list yet
+  // (mount-time fetch in flight), fall back to the static AREAS enum so the table
+  // still renders interactable selects — colours degrade to the muted default.
+  const areaBadgeOptions = useMemo(() => {
+    const live = areaOptions.map((o) => ({
+      value: o.name,
+      label: o.name,
+      color: o.color,
+    }));
+    if (live.length > 0) return live;
+    return AREAS.map((name) => ({ value: name, label: name, color: null }));
+  }, [areaOptions]);
+
   const columns = useMemo<ColumnDef<Project>[]>(
     () => [
       {
@@ -60,7 +99,7 @@ export function ProjectsTable({ items, onUpdate, onOpenProject }: Props) {
               type="button"
               onClick={() => onOpenProject(row.original.id)}
               className={cn(
-                "min-w-0 flex-1 truncate rounded px-1 py-1 text-left font-medium transition-colors hover:bg-muted",
+                "min-w-0 flex-1 truncate rounded px-1 py-1 text-left font-sans text-sm font-medium transition-colors hover:bg-muted",
                 row.original.name ? "text-foreground" : "text-muted-foreground/70",
               )}
               title={row.original.name}
@@ -83,30 +122,25 @@ export function ProjectsTable({ items, onUpdate, onOpenProject }: Props) {
         accessorKey: "status",
         header: t("projects.col.status"),
         cell: ({ row }) => (
-          <Select
-            value={row.original.status ?? undefined}
-            onValueChange={(v) => onUpdate(row.original.id, "Status", v)}
-          >
-            <SelectTrigger className="h-8 w-[140px] text-xs">
-              <SelectValue placeholder="—" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {t(`status.${s}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <OptionBadgeSelect
+            value={row.original.status}
+            options={statusBadgeOptions}
+            onChange={(v) => onUpdate(row.original.id, "Status", v)}
+            placeholder="—"
+            widthClass="w-[150px]"
+          />
         ),
       },
       {
         accessorKey: "area",
         header: t("projects.col.area"),
         cell: ({ row }) => (
-          <AreaCell
+          <OptionBadgeSelect
             value={row.original.area}
-            onSave={(v) => onUpdate(row.original.id, "Area", v)}
+            options={areaBadgeOptions}
+            onChange={(v) => onUpdate(row.original.id, "Area", v)}
+            placeholder={t("projects.cell.noArea")}
+            widthClass="w-[160px]"
           />
         ),
       },
@@ -123,7 +157,7 @@ export function ProjectsTable({ items, onUpdate, onOpenProject }: Props) {
             value={row.original.priority ?? undefined}
             onValueChange={(v) => onUpdate(row.original.id, "Priority", v)}
           >
-            <SelectTrigger className="h-8 w-[120px] text-xs">
+            <SelectTrigger className="h-9 w-[130px] font-sans text-sm">
               <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>

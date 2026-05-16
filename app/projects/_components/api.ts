@@ -1,4 +1,5 @@
 import type { Project } from "@/lib/notion";
+import { ROUTES } from "@/constants/routes";
 
 export type UpdateField = "Status" | "Priority" | "Name" | "Area" | "Due Date" | "Next Action";
 
@@ -8,7 +9,7 @@ export async function postProjectUpdate(
   value: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch("/api/projects/update", {
+    const res = await fetch(ROUTES.api.projects.update, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pageId, field, value }),
@@ -33,7 +34,7 @@ export async function postProjectCreate(
   draft: CreateDraft,
 ): Promise<{ ok: boolean; project?: Project; error?: string }> {
   try {
-    const res = await fetch("/api/projects/create", {
+    const res = await fetch(ROUTES.api.projects.create, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),

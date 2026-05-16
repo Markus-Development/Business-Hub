@@ -29,7 +29,7 @@ Every Claude Code prompt for Business Hub should apply the constraints below. To
 
 - Specify exact columns in all Supabase queries. Never `select('*')`.
 - All secrets stay server-side. Never expose API keys, refresh tokens, or service-role keys to the client.
-- Use existing constants files (`constants/tables.ts`, `constants/models.ts`, `constants/translations.ts`, `constants/areas.ts`, `constants/priorities.ts`, `constants/routes.ts`). Create them if missing. Never hardcode table names, model IDs, route paths, areas, priorities, or user-facing strings inline.
+- Use existing constants files (`constants/tables.ts`, `constants/models.ts`, `constants/translations.ts`, `constants/areas.ts`, `constants/priorities.ts`, `constants/routes.ts`, `constants/client-tasks.ts`). Create them if missing. Never hardcode table names, model IDs, route paths, areas, priorities, monthly task names, or user-facing strings inline.
 - New i18n strings require both `de` and `en` entries. Single-language entries are a bug.
 - Every migration goes in `supabase/migrations/` with a corresponding `MIGRATION_LOG.md` entry (date, filename, what, why). Do not run migrations — surface the file path for Markus to run manually.
 - Migrations are additive. No drops, no destructive schema changes without explicit confirmation.
@@ -41,6 +41,13 @@ Every Claude Code prompt for Business Hub should apply the constraints below. To
 - Keep component files under ~400 lines. Extract sub-components when they grow beyond that.
 - Run `npm run build` before declaring the task complete.
 - Touch only the files listed in the prompt's `<files>` section. Surface unexpected scope creep before acting on it.
+- **Prevent `useEffect` infinite loops on data-fetching components.** Every `useEffect` that fetches remote data and writes to state must follow this pattern:
+  - Dependency array contains only primitive values (strings, numbers, booleans) — never objects, arrays, or functions. Derive a string ID from the selected entity and depend on that.
+  - The loading guard must short-circuit on the existence of *any* entry for that ID (including the loading state), not on the presence of loaded data. Use `if (cache[id]) return;` — never `if (cache[id]?.data) return;`. The narrower guard re-fires while the request is in flight and produces an infinite loop.
+  - If a callback (e.g. `loadDetail`) is in the dep array and is stable (`useCallback` with empty or stable deps), remove it from the effect's deps and add an `eslint-disable-next-line react-hooks/exhaustive-deps` comment explaining why. An unstable callback in deps causes the same loop as an object reference.
+  - After a write that mutates the cache entry (optimistic update, post-write refresh), call the fetch function directly rather than triggering it via a state change that re-runs the effect.
+- **Never call an API route from inside render, or from a `useEffect` with an unstable dep.** Before writing any `useEffect` that calls an API route, explicitly write out the dep array and verify every entry is a primitive. Flag any object or function dep as a likely loop before proceeding.
+- **Rate-limit awareness for Notion.** Notion's API has aggressive rate limits. Never trigger Notion calls inside a loop, a polling interval, or a rapidly-firing effect. If a component mounts and immediately needs multiple Notion fetches, batch them with `Promise.all` — never serial `await`s in a loop. Log a warning (not an error) when a `rate_limited` response is received and surface a user-facing toast rather than silently retrying.
 
 ### Never
 
@@ -137,15 +144,23 @@ Built on FullCalendar React (same library as the Projects calendar view — sing
 
 ### Tab 4: Clients
 
-A per-client overview, with the client list sourced from Zoho Books contacts (filtered to active customers with at least one invoice in the last 12 months — exact filter TBD when building).
+Master-detail view that merges Zoho Books contacts with the Notion Clients DB on `Zoho Contact ID`.
 
-For each client:
-- Total turnover (lifetime), current due, overdue invoices — pulled from Zoho.
-- Link to their EasyFinance dashboard (external URL — Business Hub does not embed EasyFinance).
-- Status of this month's tasks (e.g. Book a Call, Get Transactions, Prepare Call, Call Done) — these are Notion Projects scoped to the client via the Projects DB `Client` property.
-- WhatsApp message templates (copy-to-clipboard, not embedded UI).
+**List source:** active Zoho customers (`contact_type=customer&status=active`) cross-referenced with invoices in the last 12 months — only contacts with at least one invoice in that window are shown. A Zoho contact with no Notion record is still shown (metadata fields display as `—` and read "No Notion record linked"); a Notion record with no matching Zoho `contact_id` is excluded.
 
-Read-only on Zoho side. Project status updates write back to Notion.
+**Master list (320px fixed):** name + outstanding amount + health pill (green = no overdue, amber = outstanding > 0, red = at least one overdue invoice) + monthly-task progress badge (`{done}/4`, shows `–` until the detail for that client has been loaded). Sort: Overdue first (default), Outstanding (highest first), Name A–Z. Health badge red/amber is detail-aware, so a row's pill upgrades from amber to red after that client's detail is fetched.
+
+**Summary bar (above both panels):** total clients, total outstanding (sum across all clients), total overdue (sum across loaded details only — under-states until all clients have been opened, never over-states).
+
+**Detail panel sections:**
+1. **Header** — name, Zoho email, Open Dashboard button (if `Dashboard Link` set), Open in Notion button (if Notion record linked).
+2. **Financial summary** — Lifetime Turnover (from Zoho all-invoice sum, cached 10 min per contact), Outstanding (from Zoho `outstanding_receivable_amount`), Overdue (sum of overdue invoice balances). Below that: open invoices table (Invoice #, Date, Due Date, Amount, Status). Max 10 rows; "View all in Zoho" links to the Zoho Books invoices list.
+3. **Monthly tasks** — checklist of the four `MONTHLY_TASK_NAMES` rows. Each row shows the project's Status badge (Active / On Hold / Done) or "Not created" if no project for that name exists this month. Clicking the badge cycles Active ↔ Done (optimistic, writes via existing `/api/projects/update`). When not all four exist, a "Generate tasks" button creates the missing ones in the Projects DB with `Status=Active`, `Area=Fulfillment`, `Priority=Medium`, `Due Date=last calendar day of current month`; 409 `tasks_exist` swaps the button for an "already generated this month" muted line.
+4. **WhatsApp templates** — four templates (one per task stage), interpolated with `{name}` and `{amount}` (formatted Euro, no symbol — template includes €). Copy button writes plain text to the clipboard; Open WhatsApp button is a `wa.me/<digits>` deep link, only shown when the Zoho contact has a phone number that normalises to ≥7 digits.
+5. **Client metadata** — six editable fields (Industry select, Employees number, Monthly Revenue number with € formatter, three URL fields). Inline edit per field with Save/Cancel; PATCH writes optimistically to Notion via `/api/clients/[zohoId]/notion` with revert + toast on failure. The route re-resolves the Notion pageId from the Zoho contact ID server-side rather than trusting a client-supplied id.
+6. **Notes** — read-only `<PageBodyRenderer />` (same component as the Projects detail drawer) over the Notion page body. "Edit in Notion" link below. Both sections show "No Notion record linked" when there is no Notion record for the contact.
+
+Zoho is read-only from Business Hub (no writes). Notion writes are limited to (a) the six metadata fields, (b) creating monthly task projects, (c) cycling task status on existing projects.
 
 ### Tab 5: Areas (PARA Areas)
 
@@ -224,12 +239,13 @@ Every value below lives in a constants file. Never hardcode a table name, route,
 Files are created with `.ts` extension (TypeScript project) when a feature first needs them. Do not pre-scaffold empty placeholder files.
 
 - `constants/tables.ts` — **CREATED.** Every Supabase table name. Exports `TABLES.GOOGLE_OAUTH_TOKENS`, `TABLES.BRIEFINGS`, `TABLES.TIME_BLOCK_SUGGESTIONS`, `TABLES.USER_SETTINGS`. Imported by every Supabase query.
-- `constants/routes.ts` — **NOT YET CREATED.** Every app route (both internal page paths and external API endpoints).
+- `constants/routes.ts` — **CREATED.** `ROUTES.pages.*` for every internal page path (home/projects/digest/calendar/clients/areas/resources/profile/googleConnected/googleError) and `ROUTES.api.*` for every API endpoint (projects, digest, calendar, clients, google, profile). Parameterized endpoints (`projects.blocks(pageId)`, `digest.timeblockConfirm(id)`, `digest.timeblockDismiss(id)`, `calendar.event(id)`, `clients.detail(zohoId)`, `clients.generateTasks(zohoId)`, `clients.notionPatch(zohoId)`) are functions that encode the id. Imported wherever a route string was previously hardcoded.
 - `constants/models.ts` — **CREATED.** Anthropic model IDs (`MODELS.BRIEFING` = `claude-sonnet-4-6`, `MODELS.CLASSIFY` = `claude-haiku-4-5-20251001`) + `ModelKey` / `ModelId` types. Model upgrades are a one-line change here.
 - `constants/translations.ts` — **CREATED.** DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
 - `constants/areas.ts` — **CREATED.** Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal + `Area` type.
-- `constants/priorities.ts` — **CREATED.** High / Medium / Low + `Priority` type; Active / On Hold / Done + `Status` type.
+- `constants/priorities.ts` — **CREATED.** High / Medium / Low + `Priority` type; Active / On Hold / Done + `Status` type. Also exports `NOTION_COLOUR_MAP` (the 10 Notion option-colour names → CSS values) and `notionColour(name)` helper used by the Projects table to paint Status/Area badges with the colour that Notion stores on each option.
 - `constants/user.ts` — **CREATED.** Solo-user identity (`USER.EMAIL`, `USER.INITIALS`, `USER.NAME`). Display only — never used for auth.
+- `constants/client-tasks.ts` — **CREATED.** `MONTHLY_TASK_NAMES = ['Book a Call', 'Get Transactions', 'Prepare Call', 'Call Done']` + `MonthlyTaskName` type. Drives the per-client monthly task checklist, the generate-tasks idempotency check, and the WhatsApp template keys.
 
 ### Supabase
 
@@ -459,6 +475,7 @@ Stored in `.env.local`. Never commit. The example file `.env.local.example` list
 NOTION_TOKEN=                 # internal integration token, shared with each DB
 NOTION_PROJECTS_DB_ID=        # 32-char hex of the Projects database
 NOTION_INBOX_DB_ID=           # 32-char hex of the Inbox database
+NOTION_CLIENTS_DB_ID=         # 32-char hex of the Clients database (required for Tab 4)
 NOTION_AREAS_DB_ID=           # 32-char hex of the Areas database (added when Tab 5 builds)
 NOTION_RESOURCES_DB_ID=       # 32-char hex of the Resources database (added when Tab 6 builds)
 
@@ -511,6 +528,23 @@ Notion is the source of truth. These property names are exact and case-sensitive
 | Type | select | `Task` / `Idea` / `Reference` / `Someday` — set by Claude during classification |
 | Routed To | rich_text | Target Area / Project / Resource — set by Claude |
 | Processed | checkbox | Defaults false; Markus flips to true after review |
+
+### Clients DB
+
+Created manually by Markus in Notion (the integration does not create databases). The integration must be shared with the DB. `NOTION_CLIENTS_DB_ID` must point at the database (32-char hex from the database URL). For each client record, paste the Zoho `contact_id` into the **Zoho Contact ID** rich_text field — that field is the join key with the Zoho contact returned by `listActiveContacts()`. Without it, the row will not appear on the Clients tab.
+
+| Property | Type | Notes | Edited from Business Hub? |
+| --- | --- | --- | --- |
+| Name | title | Client display name | No (edit in Notion) |
+| Zoho Contact ID | rich_text | Paste Zoho `contact_id` here — join key with Zoho data | No (edit in Notion) |
+| Industry | select | `E-Commerce` / `SaaS` / `Agency` / `Retail` / `Hospitality` / `Other` (see `INDUSTRIES` in [app/clients/_components/types.ts](app/clients/_components/types.ts)) | Yes — metadata grid |
+| Employees | number | Headcount | Yes — metadata grid |
+| Monthly Revenue | number | Client's own monthly revenue (€), for segmentation | Yes — metadata grid |
+| Call Notes Link | url | Link to most-recent call notes (Notion page, Google Doc, etc.) | Yes — metadata grid |
+| Client Database Link | url | Link to their shared workspace or folder | Yes — metadata grid |
+| Dashboard Link | url | EasyFinance or other dashboard URL | Yes — metadata grid |
+
+Page body = free-form notes (same block types as Projects). Rendered read-only via `<PageBodyRenderer />` in BH; edits happen in Notion.
 
 ### Areas DB (created when Tab 5 builds)
 
@@ -647,7 +681,7 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 
 **Dependencies installed:**
 - SDKs: `@notionhq/client` ^5.21.0, `@anthropic-ai/sdk` ^0.96.0, `@supabase/supabase-js` ^2.105.4, `googleapis` ^171.4.0, `axios` ^1.16.1.
-- View libs: `@tanstack/react-table` ^8.21.3, `@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0, `@fullcalendar/{react,core,daygrid,interaction}` all ^6.1.20.
+- View libs: `@tanstack/react-table` ^8.21.3, `@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0, `@fullcalendar/{react,core,daygrid,timegrid,interaction}` all ^6.1.20.
 - Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0, `react-markdown` ^10.1.0 (renders the daily-briefing markdown on `/digest`).
 
 **Secrets & external systems:**
@@ -661,24 +695,32 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - All UI strings in [constants/translations.ts](constants/translations.ts).
 
 **Library files (server-only marked with `import "server-only"`):**
-- [lib/notion.ts](lib/notion.ts) — `listActiveProjects`, `updateProjectField` (6 fields: Status, Priority, Name, Area, Due Date, Next Action), `createProject`, `getPageBlocks` (one-level child recursion), `pingNotion` (health check via `users.me()`), `fetchSelectOptions(propertyName)` (reads the Projects data source schema via `notion.dataSources.retrieve` and returns the options of a `select` property — returns `null` when the property is missing or not a `select`). Exports `Project`, `ProjectDraft`, `UpdateField`, `NotionBlock`, `NotionRichText`, `NotionAnnotations`, `SelectOption` types.
+- [lib/notion.ts](lib/notion.ts) — `listActiveProjects`, `updateProjectField` (6 fields: Status, Priority, Name, Area, Due Date, Next Action), `createProject`, `createClientProject` (Projects-DB create with explicit `Client` rich_text — used by `/api/clients/[zohoId]/generate-tasks`), `listProjectsByClient(clientName)` (Projects DB filtered by `Client` rich_text contains), `getPageBlocks` (one-level child recursion), `pingNotion` (health check via `users.me()`), `fetchSelectOptions(propertyName)` (reads the Projects data source schema via `notion.dataSources.retrieve` and returns the options of a `select` OR `status` property, each option carrying its `color` — returns `null` when the property is missing or of another type), `listNotionClients` (reads the Clients DB via its own cached `data_source_id` — fails loudly when `NOTION_CLIENTS_DB_ID` is unset), `getClientPageBlocks(pageId)` (thin alias over `getPageBlocks`), `updateClientField(pageId, field, value)` (6 client fields: Industry select, Employees + Monthly Revenue numbers, three URL fields). Exports `Project`, `ProjectDraft`, `UpdateField`, `NotionBlock`, `NotionRichText`, `NotionAnnotations`, `SelectOption`, `NotionClient`, `ClientUpdateField` types.
+- [lib/zoho.ts](lib/zoho.ts) — Zoho Books v3 client. `getZohoAccessToken()` refreshes via `accounts.zoho.com/oauth/v2/token` (refresh-token grant) and caches the access token in a module-level `{ token, expiresAt }` with a 5-min refresh buffer. `listActiveContacts()` cross-references active customers with invoices in the last 12 months (returns the intersection — see Tab 4 spec). `getContactInvoices(contactId)` fans out across `unpaid` / `overdue` / `partially_paid` statuses (Zoho's `status` filter accepts a single value), dedupes by `invoice_id`, and sorts most-recent first. `getContactLifetimeTurnover(contactId)` sums `total` across all invoices for the contact, cached 10 min per contact. `pingZoho()` hits `/organizations` (validates both token + `organization_id`). All calls pass `organization_id` via `ZOHO_ORG_ID` env (CLAUDE.md Critical Version Warnings). US data center only (`accounts.zoho.com` / `zohoapis.com`). Exports `ZohoContact`, `ZohoInvoice` types.
 - [lib/supabase-server.ts](lib/supabase-server.ts) — `supabaseServer()` factory using service role key.
-- [lib/google.ts](lib/google.ts) — `getOAuthClient`, `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken` (auto-refresh within 5 min of expiry), `getAuthorizedCalendarClient`, `listCalendars` (calendarList.list → `{ id, summary, primary }[]`), `getPrimaryBusy` (freebusy.query on `primary`, returns `BusyInterval[]`), `createBlock(summary, startIso, endIso)` (inserts an event into `primary`, returns `{ id, htmlLink }`), `isGoogleConnected`, `disconnectGoogle`. Tokens persisted to `google_oauth_tokens` (`user_key='markus'`).
+- [lib/google.ts](lib/google.ts) — `getOAuthClient`, `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken` (auto-refresh within 5 min of expiry), `getAuthorizedCalendarClient`, `listCalendars` (calendarList.list → `{ id, summary, primary }[]`), `getPrimaryBusy(timeMin, timeMax, calendarId?)` (freebusy.query against the given calendar, default `'primary'`, returns `BusyInterval[]`), `createBlock(summary, startIso, endIso, calendarId?)` (inserts an event into the given calendar, default `'primary'`, returns `{ id, htmlLink }`), `listEvents(calendarId, start, end)` (events.list with `singleEvents:true` + `orderBy:'startTime'`, returns `CalendarEvent[]` with id/summary/description/start/end/htmlLink), `createEvent(calendarId, payload)` (events.insert; stores `notionProjectId` in `extendedProperties.private` when provided, returns `{ id, htmlLink }`), `updateEvent(calendarId, eventId, patch)` (events.patch with summary/description/start/end), `deleteEvent(calendarId, eventId)` (events.delete, void), `isGoogleConnected`, `disconnectGoogle`. Tokens persisted to `google_oauth_tokens` (`user_key='markus'`).
 - [lib/anthropic.ts](lib/anthropic.ts) — `anthropic` client + `briefing(prompt, system?)` (Sonnet, max_tokens 2048) + `classify(text, system?)` (Haiku, max_tokens 256) + `pingAnthropic()` (1-token Haiku call for health check; caller must cache — see `/api/profile/status`). Model IDs read from [constants/models.ts](constants/models.ts).
-- [lib/settings.ts](lib/settings.ts) — `getUserSettings()` returns the 'markus' row with safe defaults (Asia/Dubai TZ, no master calendar, empty windows) when row or table is missing. `updateUserSettings(patch)` validates timezone via `Intl.supportedValuesOf('timeZone')` (with fallback to `Intl.DateTimeFormat` construction probe), validates each `TaskTypeWindow` (`start_hour < end_hour`, both 0–23), and upserts. Exports `UserSettings`, `UserSettingsPatch`, `TaskTypeWindow` types. **Note:** the time-block route and briefings route do NOT yet read from this lib — their Berlin-09-to-18 behavior is unchanged in this prompt and will be wired in a follow-up prompt.
+- [lib/settings.ts](lib/settings.ts) — `getUserSettings()` returns the 'markus' row with safe defaults (Asia/Dubai TZ, no master calendar, empty windows) when row or table is missing. `updateUserSettings(patch)` validates timezone via `Intl.supportedValuesOf('timeZone')` (with fallback to `Intl.DateTimeFormat` construction probe), validates each `TaskTypeWindow` (`start_hour < end_hour`, both 0–23), and upserts. Exports `UserSettings`, `UserSettingsPatch`, `TaskTypeWindow` types. The digest routes and the calendar routes read from this lib for timezone and `master_calendar_id ?? 'primary'`; per-task-type windows remain a future hook-up.
 - [lib/i18n.tsx](lib/i18n.tsx) — `LocaleProvider`, `useLocale`, `useT`, `t` helper.
 
 **Route handlers (all server, never return tokens to client):**
 - `/api/projects/update`, `/api/projects/create`, `/api/projects/blocks` — Notion updates / page creation / page-body fetch.
+- `/api/projects/options` — `GET` returns `{ status: SelectOption[], area: SelectOption[] }` by calling `fetchSelectOptions("Status")` + `fetchSelectOptions("Area")` in parallel. Options include each entry's Notion `color` so the table can paint the Status/Area badge with a matching left-border accent.
 - `/api/google/connect` — 302 to Google consent URL (scope: `auth/calendar`, `access_type=offline`, `prompt=consent`).
 - `/api/auth/callback/google` — OAuth callback; exchanges code, persists tokens, redirects to `/settings/google-connected` (or `/settings/google-error?reason=…`).
 - `/api/google/status` — `{ connected: boolean }`. Returns `false` if the table doesn't exist yet (pre-migration safety).
-- `/api/digest/daily` — `GET` returns the most recent daily briefing for today or 204; `POST` looks up the most recent row for today (date, 'daily', order by created_at desc, limit 1) and returns it as cached when `input_hash` matches and `?force=true` is absent, otherwise generates a fresh briefing from Active projects (Notion) + today's Google Calendar events (if connected) and `INSERT`s a new row (no upsert — `briefings` is append-only) with sha256 `input_hash` + Berlin end-of-day `expires_at`.
-- `/api/digest/timeblocks` — `GET` returns today's pending suggestions ordered by `start_at` asc. `POST` requires Google connected (409 `google_not_connected` if not), computes free intervals via `freebusy.query` on `primary` between Berlin 09:00–18:00, calls Sonnet with strict-JSON instructions (`{ suggestions: [...] }`, 2–4 entries, 25–90 min, inside free intervals), parses defensively (502 on parse failure with raw output echoed), and inserts one row per suggestion sharing a single `batch_id`.
-- `/api/digest/timeblocks/[id]/confirm` — only valid when row is `pending`; inserts a Google Calendar event on `primary` (`summary` = project name), stores `google_event_id`, transitions to `confirmed`. Returns 502 on Google insert failure, 409 on race (row not pending).
+- `/api/digest/daily` — `GET` returns the most recent daily briefing for today or 204; `POST` looks up the most recent row for today (date, 'daily', order by created_at desc, limit 1) and returns it as cached when `input_hash` matches and `?force=true` is absent, otherwise generates a fresh briefing from Active projects (Notion) + today's Google Calendar events (if connected, read from `master_calendar_id ?? 'primary'`) and `INSERT`s a new row (no upsert — `briefings` is append-only) with sha256 `input_hash` + end-of-day `expires_at` in `settings.timezone`. Both date and `expires_at` are derived from `getUserSettings().timezone`.
+- `/api/digest/timeblocks` — `GET` returns today's pending suggestions ordered by `start_at` asc (today resolved in `settings.timezone`). `POST` requires Google connected (409 `google_not_connected` if not), computes free intervals via `freebusy.query` on `master_calendar_id ?? 'primary'` between 09:00–18:00 in `settings.timezone`, calls Sonnet with strict-JSON instructions (`{ suggestions: [...] }`, 2–4 entries, 25–90 min, inside free intervals), parses defensively (502 on parse failure with raw output echoed), and inserts one row per suggestion sharing a single `batch_id`.
+- `/api/digest/timeblocks/[id]/confirm` — only valid when row is `pending`; inserts a Google Calendar event on `master_calendar_id ?? 'primary'` (`summary` = project name), stores `google_event_id`, transitions to `confirmed`. Returns 502 on Google insert failure, 409 on race (row not pending).
 - `/api/digest/timeblocks/[id]/dismiss` — transitions a pending row to `dismissed`. No calendar write. 409 if not pending.
+- `/api/calendar/events` — `GET ?start=ISO&end=ISO` returns `{ events: CalendarEvent[] }` for the visible range from `master_calendar_id ?? 'primary'`. `POST` creates a Google event (body: `{ summary, description?, start, end, notionProjectId? }`) and returns `{ event: { id, htmlLink } }`. Both require Google connected (409 `google_not_connected` if not).
+- `/api/calendar/events/[id]` — `PATCH` updates an event with any subset of `{ summary, description, start, end }`; `DELETE` removes the event (204). Both require Google connected.
+- `/api/clients` — `GET` returns `{ clients: MergedClient[] }`. Calls `listNotionClients()` + `listActiveContacts()` in parallel, joins on `Zoho Contact ID === contact_id`, returns one row per Zoho contact (Notion-only records without a Zoho match are dropped). Each row includes Notion-side metadata (industry, employees, etc., or `null` when no Notion record is linked) plus Zoho-side amounts (`outstandingAmount`, `unusedCredits`) and a cheap `hasOutstanding` flag. Sorted default by outstanding-desc then name-asc. If `NOTION_CLIENTS_DB_ID` is missing or the Notion DB is unreachable, the route logs and returns the Zoho-only view instead of failing (UI surfaces empty Notion fields per row).
+- `/api/clients/[zohoId]` — `GET` returns `{ zohoContactId, notion, notionBlocks, invoices, lifetimeTurnover, monthlyTasks }`. Resolves the matching Notion record first; uses its `name` to filter Projects DB rows for this month (created in current month or due in current month). Invoices, lifetime turnover, this-month projects, and Notion page blocks are fetched in parallel.
+- `/api/clients/[zohoId]/generate-tasks` — `POST` with `{ clientName }`. Filters existing Projects-by-client to current-month rows, computes which of `MONTHLY_TASK_NAMES` are missing, creates one Notion page per missing name (`Status=Active`, `Area=Fulfillment`, `Priority=Medium`, `Due Date=last calendar day of this month`). Returns 409 `tasks_exist` when all four already exist this month. Body: `{ created: string[], skipped: string[] }`.
+- `/api/clients/[zohoId]/notion` — `PATCH` with `{ field, value }`. Validates `field` is one of the six editable client fields, validates `value` per field type (string-or-null for Industry / URL fields, number-or-null for Employees / Monthly Revenue). Re-resolves the Notion `pageId` from the Zoho contact ID server-side (never trusts a client-supplied pageId), then calls `updateClientField`. Returns 404 `notion_not_linked` if no Notion record matches.
 - `/api/google/disconnect` — `POST` removes the stored token row via `disconnectGoogle()` so the OAuth flow can be re-run from scratch. Surfaced from the `/profile` Google card.
-- `/api/profile/status` — `POST` runs every integration health check in parallel via `Promise.allSettled` and returns `{ notion, google, zoho, anthropic, supabase }` keyed by integration with `{ status: 'connected'|'error'|'not_configured'|'never_connected', message?, checkedAt }`. Anthropic check is cached in a module-level variable for 10 min (success AND error) to avoid burning API calls on every page load. Zoho returns `not_configured` until Tab 4 builds.
+- `/api/profile/status` — `POST` runs every integration health check in parallel via `Promise.allSettled` and returns `{ notion, google, zoho, anthropic, supabase }` keyed by integration with `{ status: 'connected'|'error'|'not_configured'|'never_connected', message?, checkedAt }`. Anthropic check is cached in a module-level variable for 10 min (success AND error) to avoid burning API calls on every page load. Zoho check calls `pingZoho()` (GET `/organizations`) when all four Zoho env vars are set; falls back to `not_configured` if any are missing.
 - `/api/profile/settings` — `GET` returns `{ settings }` for `user_key='markus'` (falls back to defaults if the row or table is missing). `PATCH` accepts any subset of `{ timezone, master_calendar_id, task_type_windows }`, validates via `lib/settings.updateUserSettings`, upserts, and returns the persisted row. 400 on validation failure (e.g. `invalid_timezone`, `start_not_before_end`).
 - `/api/profile/calendars` — `GET` requires Google connected (409 `google_not_connected` if not), calls `listCalendars()` and returns `{ calendars: [{ id, summary, primary }] }`.
 - `/api/profile/task-types` — `GET` calls `fetchSelectOptions("Task Type")` on the Notion Projects data source. Returns `{ options: [{ id, name }], missing: false }` when the property exists, or `{ options: [], missing: true }` when it doesn't — the UI uses `missing` to surface a "create this property in Notion" empty state.
@@ -687,8 +729,10 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - `/` redirects to `/projects`.
 - `/projects` — Tab 1, fully built (see below).
 - `/digest` — Tab 2, daily briefing + time-block suggestions (see below).
+- `/calendar` — Tab 3, Google Calendar mirror (see below).
+- `/clients` — Tab 4, client master-detail (see below).
 - `/profile` — integration status surface (see below). Linked from the top-nav avatar.
-- `/calendar`, `/clients`, `/areas`, `/resources` — placeholder "coming soon" pages.
+- `/areas`, `/resources` — placeholder "coming soon" pages.
 - `/settings/google-connected`, `/settings/google-error` — OAuth flow landings.
 
 **Tab 1 (Projects) — complete:**
@@ -696,27 +740,50 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - View toggle top-left, persisted in `bh.projects.view` localStorage.
 - Status / Area / Priority filters at tab level — apply to all three views.
 - Inline edit in Table for Status, Area, Priority, Due Date, Next Action; Name edit happens in drawer.
+- Table typography unified across all cell types — `h-9` + `font-sans text-sm` on both read and edit states, so clicking to edit doesn't visually resize the cell.
+- Status and Area cells render through [OptionBadgeSelect](app/projects/_components/cells/OptionBadgeSelect.tsx), which paints a 3px solid left border on the trigger using the colour Notion stores on each option (via `NOTION_COLOUR_MAP`). Options + colours are fetched once on mount from `/api/projects/options`; the cell falls back to muted-default when the fetch hasn't returned yet.
 - Detail drawer (shadcn Sheet, 720px): compact metadata zone with editable Name heading + 9 metadata rows; read-only Notion page body rendered by [app/projects/_components/PageBodyRenderer.tsx](app/projects/_components/PageBodyRenderer.tsx) (paragraph, heading_1/2/3, bulleted/numbered list with one-level children, to_do, quote, callout, code, divider, toggle; bold/italic/strikethrough/code/link rich-text; loading/empty/error states).
 - Add Project dialog (shadcn Dialog) — Name + Area required validation; defaults: Status=Active, Priority=Medium.
 - Optimistic UI on all writes with sonner toast + revert on failure.
 
 **Tab 2 (AI Digest) — daily briefing + time-block suggestions:**
 - Daily briefing and time-block suggestions are built; weekly plan is deferred.
-- Server route `/api/digest/daily` (POST/GET). POST gathers trimmed Active projects (Name, Status, Area, Priority, Due Date, Next Action, Estimated Minutes — no page bodies) and today's Google Calendar events (title + start + end only, if connected), computes a sha256 `input_hash` over canonical JSON of the inputs, calls Sonnet via `briefing()` with a system prompt that requests three short markdown sections ("Focus today", "Overdue / urgent", "Defer"; under ~400 words), and `INSERT`s a new row into `briefings` (date, 'daily') with `expires_at` set to Berlin end-of-day. Cache hit when the most recent row for today has a matching `input_hash` and `?force=true` is absent.
+- Server route `/api/digest/daily` (POST/GET). POST gathers trimmed Active projects (Name, Status, Area, Priority, Due Date, Next Action, Estimated Minutes — no page bodies) and today's Google Calendar events (title + start + end only, if connected), computes a sha256 `input_hash` over canonical JSON of the inputs, calls Sonnet via `briefing()` with a system prompt that requests three short markdown sections ("Focus today", "Overdue / urgent", "Defer"; under ~400 words), and `INSERT`s a new row into `briefings` (date, 'daily') with `expires_at` set to end-of-day in `settings.timezone`. Cache hit when the most recent row for today has a matching `input_hash` and `?force=true` is absent.
 - Briefings are append-only: every regeneration inserts a new row and the displayed briefing is the latest row for today; prior briefings are preserved for a future history-viewer (separate task).
-- Time-block suggestions live below the daily briefing on `/digest` (component [app/digest/_components/TimeBlockSuggestions.tsx](app/digest/_components/TimeBlockSuggestions.tsx)). On mount it GETs `/api/digest/timeblocks` (no auto-generate — Sonnet only runs on explicit user click). Empty state shows a "Suggest time blocks" button; populated state shows cards (project name, HH:mm–HH:mm Berlin time range, rationale) with Confirm / Dismiss actions and a "Suggest again" header button that appends a new batch alongside existing pending cards. Optimistic UI on confirm/dismiss with sonner toasts and revert on failure. Uses the same `tRef` + empty-deps `useEffect` pattern as `DailyDigest` so locale toggles don't refetch.
+- Time-block suggestions live below the daily briefing on `/digest` (component [app/digest/_components/TimeBlockSuggestions.tsx](app/digest/_components/TimeBlockSuggestions.tsx)). On mount it GETs `/api/digest/timeblocks` (no auto-generate — Sonnet only runs on explicit user click). The route echoes `settings.timezone` alongside the suggestions and the component formats `HH:mm–HH:mm` in that timezone (not a hardcoded one). Empty state shows a "Suggest time blocks" button; populated state shows cards (project name, time range, rationale) with Confirm / Dismiss actions and a "Suggest again" header button that appends a new batch alongside existing pending cards. Optimistic UI on confirm/dismiss with sonner toasts and revert on failure. Uses the same `tRef` + empty-deps `useEffect` pattern as `DailyDigest` so locale toggles don't refetch.
+- Both `DailyDigest` and `TimeBlockSuggestions` use a `max-w-4xl` centred wrapper.
+
+**Tab 3 (Calendar) — Google Calendar mirror:**
+- Server shell [app/calendar/page.tsx](app/calendar/page.tsx) calls `isGoogleConnected()` + fetches Active projects from Notion (for the dialog's project dropdown) and passes both as props to [app/calendar/_components/CalendarView.tsx](app/calendar/_components/CalendarView.tsx). The page also imports the scoped stylesheet [app/calendar/calendar.css](app/calendar/calendar.css) — Google-Calendar-style FullCalendar overrides nested under `.bh-calendar` so they never bleed into the Projects-tab FullCalendar.
+- When Google is not connected: renders a centered "Connect Google Calendar" card with a CTA linking to `/api/google/connect`. Calendar markup is not rendered.
+- When connected: FullCalendar mounts with `[dayGridPlugin, timeGridPlugin, interactionPlugin]`. Initial view: `timeGridWeek` (persisted as `bh.calendar.view` in localStorage). `editable: false` — no drag-to-reschedule on this tab (edit flows through the dialog only). Slot range `06:00–22:00` (48px per hour, with dashed half-hour minor lines), nowIndicator on (a primary-coloured line with a leading dot), all-day slot hidden, week starts Monday.
+- FullCalendar's default toolbar is hidden; the tab renders its own toolbar above the calendar with `<` / Today / `>` buttons + the current range label (read from `view.title` on `datesSet`) on the left, and a Day / Week / Month segmented control on the right. The view toggle drives FC imperatively via `calendarRef.getApi().changeView(next)`.
+- Events fetched from `/api/calendar/events?start=…&end=…` on every `datesSet` (view/range change). Pending time-block suggestions fetched once on mount from `/api/digest/timeblocks` and overlaid with the `bh-pending-event` className so calendar.css paints them with the muted/dashed style; the title is prefixed with `⏳ ` so they stay recognisable when the dashed border is small.
+- Empty-slot click opens [app/calendar/_components/EventDialog.tsx](app/calendar/_components/EventDialog.tsx) in create mode, pre-filled with the slot's start/end as `datetime-local` strings. Google event click opens the same dialog in edit mode (Title, Project select, Description textarea, Start/End datetime-local). Title required, End-after-Start validated inline. Edit mode includes a Delete button that opens a second confirmation Dialog (since shadcn `alert-dialog` isn't installed; same Dialog primitive, dedicated content).
+- Pending-suggestion click opens [app/calendar/_components/PendingSuggestionPopover.tsx](app/calendar/_components/PendingSuggestionPopover.tsx) (implemented as a small shadcn Dialog — no `popover` primitive installed): shows project name, HH:mm–HH:mm time range, rationale, Confirm / Dismiss. Confirm calls `/api/digest/timeblocks/[id]/confirm`, removes the ⏳ event, optimistically adds the new Google event to local state; Dismiss calls `/api/digest/timeblocks/[id]/dismiss` and removes the ⏳ event.
+- All event create/update/delete and suggestion confirm/dismiss writes are optimistic with sonner toasts and revert-on-failure snapshots. i18n entries under `calendar.*` (including `calendar.toolbar.{today,prev,next}`) in [constants/translations.ts](constants/translations.ts) (DE+EN).
+
+**Tab 4 (Clients) — Zoho/Notion master-detail:**
+- Server shell [app/clients/page.tsx](app/clients/page.tsx) does no data fetching and mounts [app/clients/_components/ClientsView.tsx](app/clients/_components/ClientsView.tsx). The client component fetches `/api/clients` on mount, auto-selects the first row, and lazy-fetches `/api/clients/[zohoId]` per selected client (cached in component state — clicking a previously-loaded client reuses cache).
+- **Detail-fetch effect (loop-safe pattern — see the "Prevent useEffect infinite loops" constraint in Standard Prompt Constraints):** the effect depends on `[selectedZohoId]` only (primitive), and the guard short-circuits on `if (details[selectedZohoId]) return` — the *presence* of any entry, not the presence of loaded data. An earlier version depended on `[selectedZohoId, details, loadDetail]` and guarded on `details[selectedZohoId]?.detail`; since `loadDetail` sets `loading: true` before awaiting, the `details` reference changed mid-fetch, the effect re-fired, the guard didn't short-circuit (data was still `null`), and the route was hammered dozens of times per second. Reaffirmed in the constraint to prevent regressions in other tabs.
+- Components: [ClientList](app/clients/_components/ClientList.tsx) (left panel, 320px), [ClientDetail](app/clients/_components/ClientDetail.tsx) (right panel; pulls in [InvoiceList](app/clients/_components/InvoiceList.tsx), [MonthlyTaskChecklist](app/clients/_components/MonthlyTaskChecklist.tsx), [WhatsAppTemplates](app/clients/_components/WhatsAppTemplates.tsx), and an inline `MetadataGrid`/`IndustryField`/`NumberField`/`UrlField` group). Notes section reuses `<PageBodyRenderer />` from the Projects tab. Shared types and helpers in [types.ts](app/clients/_components/types.ts) including `INDUSTRIES` (the Notion `Industry` select options), `clientHealth()`, and `formatEur()`.
+- Health pill on each list row: green when no overdue, amber when outstanding > 0, red when at least one overdue invoice (red is detail-aware — upgrades from amber after that client's detail is loaded). Task progress badge shows `{done}/4` once the detail is loaded, `–` before then.
+- WhatsApp templates: four parameterized strings under `clients.whatsapp.template.<task name>` in [constants/translations.ts](constants/translations.ts), interpolated with `{name}` and `{amount}`. Copy button writes plain text. Open WhatsApp button is `https://wa.me/<digits>` and is hidden when the Zoho phone normalises to fewer than 7 digits.
+- Metadata edits PATCH `/api/clients/[zohoId]/notion`; task status cycles use the existing `/api/projects/update` POST; task generation POSTs `/api/clients/[zohoId]/generate-tasks`. All writes are optimistic with sonner toast + revert on failure.
+- i18n entries under `clients.*` in [constants/translations.ts](constants/translations.ts) (DE+EN, including monthly task labels, invoice status labels, WhatsApp templates, and metadata field labels).
 
 **Profile (integration status + settings surface):**
 - `/profile` ([app/profile/_components/ProfileView.tsx](app/profile/_components/ProfileView.tsx)) lists every integration as a card: name, kind (env / OAuth), status pill (Connected / Error / Not configured / Never connected), checked-at relative time, error message (truncated to ~120 chars, monospaced). A "Re-check all" header button re-runs every check; Google offers Connect / Disconnect actions.
 - Env-based integrations (verified by a live ping): **Notion** (`users.me()`), **Anthropic** (1-token Haiku call, cached 10 min in a module-level variable to avoid burning API on every load — success AND error cached), **Supabase** (`select head:true` on `briefings`).
-- OAuth integrations: **Google Calendar** (`isGoogleConnected()` + `calendarList.get('primary')` ping to verify the token still works). **Zoho Books** is not yet wired (Tab 4) and renders as `not_configured`.
+- OAuth integrations: **Google Calendar** (`isGoogleConnected()` + `calendarList.get('primary')` ping to verify the token still works). **Zoho Books** is wired via `pingZoho()` (GET `/organizations` — validates token + org_id) and reports `connected` / `error` / `not_configured`.
 - All checks run in parallel via `Promise.allSettled` in `/api/profile/status`. The route never returns secrets / token contents.
 - **Settings section** ([app/profile/_components/SettingsSection.tsx](app/profile/_components/SettingsSection.tsx)) — sits below Integrations. Three subsections:
   1. **Timezone** — Input + `<datalist>` of ~15 curated IANA zones (Dubai, Berlin, Madrid, London, Lisbon, Athens, Zurich, New York, Chicago, Denver, Los Angeles, Toronto, São Paulo, Singapore, Tokyo); free-text accepted. PATCH on Save / Enter.
   2. **Master Calendar** — radio list of user's Google calendars (with `primary` badge). Self-fetches `/api/profile/calendars` and listens for `bh:google-status-changed` so disconnect/reconnect re-syncs without a reload. Renders a muted "Connect Google Calendar" note when not connected.
-  3. **Task Type Windows** — table whose rows are derived from Notion's `Task Type` select-property options (fetched live each load, no string-coupling in code). Per row: two `0–23` hour inputs (start, end). PATCH on change with the full array; rows with `start >= end` update visually but are not persisted until valid.
+  3. **Task Type Windows** — grouped list whose sections are derived from Notion's `Task Type` select-property options (fetched live each load, no string-coupling in code). Each section can hold **multiple windows** (`start_hour`–`end_hour` pairs) for that task type. A `+ Add window` button appends a `{ task_type, start_hour: 9, end_hour: 17 }` entry to the array; an `×` button per row removes it. PATCH on add / remove / valid edit with the full updated array. Rows with `start >= end` show a "Start must be before end" inline error and update visually but are not persisted until corrected. Backed by the existing `user_settings.task_type_windows` jsonb column — multiple entries with the same `task_type` are valid, so no migration was needed.
 - Optimistic UI on all PATCHes with sonner toast + snapshot revert on failure. Uses the `tRef` + empty-deps `useEffect` pattern.
-- **Caveat:** the time-block route, briefings route, and other Berlin/09–18 references are *not* wired into `lib/settings` yet — those still use their original hardcoded values. The wire-through is a deliberate follow-up prompt.
+- The digest routes and the Tab 3 calendar routes read `timezone` + `master_calendar_id ?? 'primary'` from `lib/settings`. The time-block planner now also reads `task_type_windows`: when any windows are configured the workday window is the union (min start, max end) across all entries; otherwise it falls back to 09:00–18:00. The route logs the resolved window (`[timeblocks] tz=… window=H:00-H:00 → ISO → ISO`) for verification. Per-task-type routing (matching a project's Task Type to its specific window) is still future work.
+- The time-block UI formats start/end in `settings.timezone` (echoed in the `/api/digest/timeblocks` response) rather than the previously hardcoded `Europe/Berlin` — fixes the symptom where a 09:00 Dubai suggestion was displayed as 07:00.
 - UI: server-shell `/digest` page mounts client component [app/digest/_components/DailyDigest.tsx](app/digest/_components/DailyDigest.tsx). On mount it GETs `/api/digest/daily` (204 → empty state with "Generate" button). Renders the cached markdown via `react-markdown` (no plugins) using custom `components` mapping for headings/lists/strong/em/a/code/blockquote. "Regenerate" button POSTs `?force=true`. Generated-at indicator shows "Just generated" or a localized relative time.
 - New dependency: `react-markdown` ^10 (no remark/rehype plugins). i18n entries under `digest.*` in [constants/translations.ts](constants/translations.ts) (DE+EN).
 
@@ -725,17 +792,15 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - The daily digest gracefully proceeds without calendar context when not connected (`googleConnected: false` flag passed into the model prompt).
 
 **Not yet built:**
-- Tabs 3–6 (Calendar mirror, Clients, Areas, Resources) — placeholders only.
+- Tabs 5–6 (Areas, Resources) — placeholders only.
 - Tab 2 weekly plan.
-- Settings wire-through: time-block route, briefings route, and any other hardcoded Berlin/09–18 references still need to read from `lib/settings` for timezone, master calendar, and per-task-type working hours. This is the next planned prompt.
-- `constants/routes.ts` (created when first feature needs route constants).
-- Integration libs: `lib/zoho.ts`.
+- Per-task-type window *routing*: the planner reads the union (min start / max end) across all configured `task_type_windows`, but does not yet match a project's Task Type to that type's specific window.
 - Supabase tables beyond `google_oauth_tokens`, `briefings`, `time_block_suggestions`, `user_settings`.
 - Any agents or sub-agents.
 - Notion Areas and Resources DBs (added when Tabs 5 and 6 build).
 - RLS on `google_oauth_tokens` / `briefings` / `time_block_suggestions` / `user_settings` (currently relying on service-role-only access).
 
-**Next planned step:** Settings wire-through (Prompt B). Replace the hardcoded `Europe/Berlin` + `09:00`–`18:00` window in the time-block route, the daily-briefing route, and any other Berlin references with reads from `lib/settings.getUserSettings()`. Master calendar replaces hardcoded `'primary'` in `createBlock` / `getPrimaryBusy`. After that lands, Tab 3 (Calendar mirror).
+**Next planned step:** Tab 5 (Areas). Decide between (a) a new Notion `Areas` DB and (b) deriving Areas from the existing Projects DB `Area` select. Build an `app/areas` server shell + client view that surfaces one card per Area with Current Milestone (1 line, editable inline), Next 1–2 Steps (editable inline), and a count of Active projects linked to the Projects tab filtered by Area.
 
 ## Start-of-Session Checklist
 
