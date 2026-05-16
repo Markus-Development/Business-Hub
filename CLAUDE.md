@@ -223,12 +223,13 @@ Every value below lives in a constants file. Never hardcode a table name, route,
 
 Files are created with `.ts` extension (TypeScript project) when a feature first needs them. Do not pre-scaffold empty placeholder files.
 
-- `constants/tables.ts` — **CREATED.** Every Supabase table name. Currently exports `TABLES.GOOGLE_OAUTH_TOKENS`. Imported by every Supabase query.
+- `constants/tables.ts` — **CREATED.** Every Supabase table name. Exports `TABLES.GOOGLE_OAUTH_TOKENS`, `TABLES.BRIEFINGS`, `TABLES.TIME_BLOCK_SUGGESTIONS`, `TABLES.USER_SETTINGS`. Imported by every Supabase query.
 - `constants/routes.ts` — **NOT YET CREATED.** Every app route (both internal page paths and external API endpoints).
-- `constants/models.ts` — **NOT YET CREATED.** Anthropic model IDs. Model upgrades must be a one-line change here.
+- `constants/models.ts` — **CREATED.** Anthropic model IDs (`MODELS.BRIEFING` = `claude-sonnet-4-6`, `MODELS.CLASSIFY` = `claude-haiku-4-5-20251001`) + `ModelKey` / `ModelId` types. Model upgrades are a one-line change here.
 - `constants/translations.ts` — **CREATED.** DE/EN i18n strings. Every user-facing string lives here, with both `de` and `en` entries. No exceptions.
 - `constants/areas.ts` — **CREATED.** Fulfillment, Accounting, Marketing, Sales, Development, Operations, Content, Personal + `Area` type.
 - `constants/priorities.ts` — **CREATED.** High / Medium / Low + `Priority` type; Active / On Hold / Done + `Status` type.
+- `constants/user.ts` — **CREATED.** Solo-user identity (`USER.EMAIL`, `USER.INITIALS`, `USER.NAME`). Display only — never used for auth.
 
 ### Supabase
 
@@ -647,21 +648,24 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 **Dependencies installed:**
 - SDKs: `@notionhq/client` ^5.21.0, `@anthropic-ai/sdk` ^0.96.0, `@supabase/supabase-js` ^2.105.4, `googleapis` ^171.4.0, `axios` ^1.16.1.
 - View libs: `@tanstack/react-table` ^8.21.3, `@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0, `@fullcalendar/{react,core,daygrid,interaction}` all ^6.1.20.
-- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0.
+- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0, `react-markdown` ^10.1.0 (renders the daily-briefing markdown on `/digest`).
 
 **Secrets & external systems:**
 - `.env.local` populated with Notion, Google, Zoho, Supabase, Anthropic secrets (not committed).
 - PARA structure in Notion with Projects + Inbox databases (IDs in `.env.local`).
-- Supabase project provisioned; `supabase/migrations/` directory exists with first migration (`20260515120000_google_oauth_tokens.sql`) and `MIGRATION_LOG.md`. **Migration must be run manually by Markus** (Supabase Dashboard SQL editor or `supabase db push`).
+- Supabase project provisioned; `supabase/migrations/` directory exists with five migrations (`20260515120000_google_oauth_tokens.sql`, `20260516120000_briefings.sql`, `20260517120000_briefings_append_only.sql`, `20260518120000_time_block_suggestions.sql`, `20260519120000_user_settings.sql`) and `MIGRATION_LOG.md`. Tables in Supabase: `google_oauth_tokens`; `briefings` (date, kind 'daily'|'weekly', summary, model, input_hash, expires_at; append-only history, latest row per (date, kind) is the current briefing; lookup index on (date, kind, created_at desc)); `time_block_suggestions` (date, project_name, start_at, end_at, rationale, status 'pending'|'confirmed'|'dismissed', google_event_id, batch_id; append-only history, UI surfaces today's pending rows ordered by start_at; lookup index on (date, status, created_at desc)); `user_settings` (user_key pk, timezone default 'Asia/Dubai', master_calendar_id nullable, task_type_windows jsonb default '[]', updated_at; seeded with one row `user_key='markus'` via ON CONFLICT DO NOTHING). **Migrations must be run manually by Markus** (Supabase Dashboard SQL editor or `supabase db push`).
 
 **App layout & i18n:**
-- Top nav with 6-tab switcher (`Projects`/`Digest`/`Calendar`/`Clients`/`Areas`/`Resources`) + DE/EN `LocaleToggle` (DE default, persisted as `bh.locale` in localStorage) + Google "Connect" affordance (visible only when not connected).
+- Top nav with 6-tab switcher (`Projects`/`Digest`/`Calendar`/`Clients`/`Areas`/`Resources`) + DE/EN `LocaleToggle` (DE default, persisted as `bh.locale` in localStorage) + Google "Connect" affordance (visible only when not connected) + avatar that links to `/profile`. The top nav listens for the `bh:google-status-changed` window event so the Connect button reappears immediately after a disconnect from `/profile` without a reload.
+- Solo-user identity (email / initials / display name) lives in [constants/user.ts](constants/user.ts) — display only, never used for auth.
 - All UI strings in [constants/translations.ts](constants/translations.ts).
 
 **Library files (server-only marked with `import "server-only"`):**
-- [lib/notion.ts](lib/notion.ts) — `listActiveProjects`, `updateProjectField` (6 fields: Status, Priority, Name, Area, Due Date, Next Action), `createProject`, `getPageBlocks` (one-level child recursion). Exports `Project`, `ProjectDraft`, `UpdateField`, `NotionBlock`, `NotionRichText`, `NotionAnnotations` types.
+- [lib/notion.ts](lib/notion.ts) — `listActiveProjects`, `updateProjectField` (6 fields: Status, Priority, Name, Area, Due Date, Next Action), `createProject`, `getPageBlocks` (one-level child recursion), `pingNotion` (health check via `users.me()`), `fetchSelectOptions(propertyName)` (reads the Projects data source schema via `notion.dataSources.retrieve` and returns the options of a `select` property — returns `null` when the property is missing or not a `select`). Exports `Project`, `ProjectDraft`, `UpdateField`, `NotionBlock`, `NotionRichText`, `NotionAnnotations`, `SelectOption` types.
 - [lib/supabase-server.ts](lib/supabase-server.ts) — `supabaseServer()` factory using service role key.
-- [lib/google.ts](lib/google.ts) — `getOAuthClient`, `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken` (auto-refresh within 5 min of expiry), `getAuthorizedCalendarClient`, `isGoogleConnected`, `disconnectGoogle`. Tokens persisted to `google_oauth_tokens` (`user_key='markus'`).
+- [lib/google.ts](lib/google.ts) — `getOAuthClient`, `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken` (auto-refresh within 5 min of expiry), `getAuthorizedCalendarClient`, `listCalendars` (calendarList.list → `{ id, summary, primary }[]`), `getPrimaryBusy` (freebusy.query on `primary`, returns `BusyInterval[]`), `createBlock(summary, startIso, endIso)` (inserts an event into `primary`, returns `{ id, htmlLink }`), `isGoogleConnected`, `disconnectGoogle`. Tokens persisted to `google_oauth_tokens` (`user_key='markus'`).
+- [lib/anthropic.ts](lib/anthropic.ts) — `anthropic` client + `briefing(prompt, system?)` (Sonnet, max_tokens 2048) + `classify(text, system?)` (Haiku, max_tokens 256) + `pingAnthropic()` (1-token Haiku call for health check; caller must cache — see `/api/profile/status`). Model IDs read from [constants/models.ts](constants/models.ts).
+- [lib/settings.ts](lib/settings.ts) — `getUserSettings()` returns the 'markus' row with safe defaults (Asia/Dubai TZ, no master calendar, empty windows) when row or table is missing. `updateUserSettings(patch)` validates timezone via `Intl.supportedValuesOf('timeZone')` (with fallback to `Intl.DateTimeFormat` construction probe), validates each `TaskTypeWindow` (`start_hour < end_hour`, both 0–23), and upserts. Exports `UserSettings`, `UserSettingsPatch`, `TaskTypeWindow` types. **Note:** the time-block route and briefings route do NOT yet read from this lib — their Berlin-09-to-18 behavior is unchanged in this prompt and will be wired in a follow-up prompt.
 - [lib/i18n.tsx](lib/i18n.tsx) — `LocaleProvider`, `useLocale`, `useT`, `t` helper.
 
 **Route handlers (all server, never return tokens to client):**
@@ -669,11 +673,22 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - `/api/google/connect` — 302 to Google consent URL (scope: `auth/calendar`, `access_type=offline`, `prompt=consent`).
 - `/api/auth/callback/google` — OAuth callback; exchanges code, persists tokens, redirects to `/settings/google-connected` (or `/settings/google-error?reason=…`).
 - `/api/google/status` — `{ connected: boolean }`. Returns `false` if the table doesn't exist yet (pre-migration safety).
+- `/api/digest/daily` — `GET` returns the most recent daily briefing for today or 204; `POST` looks up the most recent row for today (date, 'daily', order by created_at desc, limit 1) and returns it as cached when `input_hash` matches and `?force=true` is absent, otherwise generates a fresh briefing from Active projects (Notion) + today's Google Calendar events (if connected) and `INSERT`s a new row (no upsert — `briefings` is append-only) with sha256 `input_hash` + Berlin end-of-day `expires_at`.
+- `/api/digest/timeblocks` — `GET` returns today's pending suggestions ordered by `start_at` asc. `POST` requires Google connected (409 `google_not_connected` if not), computes free intervals via `freebusy.query` on `primary` between Berlin 09:00–18:00, calls Sonnet with strict-JSON instructions (`{ suggestions: [...] }`, 2–4 entries, 25–90 min, inside free intervals), parses defensively (502 on parse failure with raw output echoed), and inserts one row per suggestion sharing a single `batch_id`.
+- `/api/digest/timeblocks/[id]/confirm` — only valid when row is `pending`; inserts a Google Calendar event on `primary` (`summary` = project name), stores `google_event_id`, transitions to `confirmed`. Returns 502 on Google insert failure, 409 on race (row not pending).
+- `/api/digest/timeblocks/[id]/dismiss` — transitions a pending row to `dismissed`. No calendar write. 409 if not pending.
+- `/api/google/disconnect` — `POST` removes the stored token row via `disconnectGoogle()` so the OAuth flow can be re-run from scratch. Surfaced from the `/profile` Google card.
+- `/api/profile/status` — `POST` runs every integration health check in parallel via `Promise.allSettled` and returns `{ notion, google, zoho, anthropic, supabase }` keyed by integration with `{ status: 'connected'|'error'|'not_configured'|'never_connected', message?, checkedAt }`. Anthropic check is cached in a module-level variable for 10 min (success AND error) to avoid burning API calls on every page load. Zoho returns `not_configured` until Tab 4 builds.
+- `/api/profile/settings` — `GET` returns `{ settings }` for `user_key='markus'` (falls back to defaults if the row or table is missing). `PATCH` accepts any subset of `{ timezone, master_calendar_id, task_type_windows }`, validates via `lib/settings.updateUserSettings`, upserts, and returns the persisted row. 400 on validation failure (e.g. `invalid_timezone`, `start_not_before_end`).
+- `/api/profile/calendars` — `GET` requires Google connected (409 `google_not_connected` if not), calls `listCalendars()` and returns `{ calendars: [{ id, summary, primary }] }`.
+- `/api/profile/task-types` — `GET` calls `fetchSelectOptions("Task Type")` on the Notion Projects data source. Returns `{ options: [{ id, name }], missing: false }` when the property exists, or `{ options: [], missing: true }` when it doesn't — the UI uses `missing` to surface a "create this property in Notion" empty state.
 
 **Pages:**
 - `/` redirects to `/projects`.
 - `/projects` — Tab 1, fully built (see below).
-- `/digest`, `/calendar`, `/clients`, `/areas`, `/resources` — placeholder "coming soon" pages.
+- `/digest` — Tab 2, daily briefing + time-block suggestions (see below).
+- `/profile` — integration status surface (see below). Linked from the top-nav avatar.
+- `/calendar`, `/clients`, `/areas`, `/resources` — placeholder "coming soon" pages.
 - `/settings/google-connected`, `/settings/google-error` — OAuth flow landings.
 
 **Tab 1 (Projects) — complete:**
@@ -685,20 +700,42 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - Add Project dialog (shadcn Dialog) — Name + Area required validation; defaults: Status=Active, Priority=Medium.
 - Optimistic UI on all writes with sonner toast + revert on failure.
 
+**Tab 2 (AI Digest) — daily briefing + time-block suggestions:**
+- Daily briefing and time-block suggestions are built; weekly plan is deferred.
+- Server route `/api/digest/daily` (POST/GET). POST gathers trimmed Active projects (Name, Status, Area, Priority, Due Date, Next Action, Estimated Minutes — no page bodies) and today's Google Calendar events (title + start + end only, if connected), computes a sha256 `input_hash` over canonical JSON of the inputs, calls Sonnet via `briefing()` with a system prompt that requests three short markdown sections ("Focus today", "Overdue / urgent", "Defer"; under ~400 words), and `INSERT`s a new row into `briefings` (date, 'daily') with `expires_at` set to Berlin end-of-day. Cache hit when the most recent row for today has a matching `input_hash` and `?force=true` is absent.
+- Briefings are append-only: every regeneration inserts a new row and the displayed briefing is the latest row for today; prior briefings are preserved for a future history-viewer (separate task).
+- Time-block suggestions live below the daily briefing on `/digest` (component [app/digest/_components/TimeBlockSuggestions.tsx](app/digest/_components/TimeBlockSuggestions.tsx)). On mount it GETs `/api/digest/timeblocks` (no auto-generate — Sonnet only runs on explicit user click). Empty state shows a "Suggest time blocks" button; populated state shows cards (project name, HH:mm–HH:mm Berlin time range, rationale) with Confirm / Dismiss actions and a "Suggest again" header button that appends a new batch alongside existing pending cards. Optimistic UI on confirm/dismiss with sonner toasts and revert on failure. Uses the same `tRef` + empty-deps `useEffect` pattern as `DailyDigest` so locale toggles don't refetch.
+
+**Profile (integration status + settings surface):**
+- `/profile` ([app/profile/_components/ProfileView.tsx](app/profile/_components/ProfileView.tsx)) lists every integration as a card: name, kind (env / OAuth), status pill (Connected / Error / Not configured / Never connected), checked-at relative time, error message (truncated to ~120 chars, monospaced). A "Re-check all" header button re-runs every check; Google offers Connect / Disconnect actions.
+- Env-based integrations (verified by a live ping): **Notion** (`users.me()`), **Anthropic** (1-token Haiku call, cached 10 min in a module-level variable to avoid burning API on every load — success AND error cached), **Supabase** (`select head:true` on `briefings`).
+- OAuth integrations: **Google Calendar** (`isGoogleConnected()` + `calendarList.get('primary')` ping to verify the token still works). **Zoho Books** is not yet wired (Tab 4) and renders as `not_configured`.
+- All checks run in parallel via `Promise.allSettled` in `/api/profile/status`. The route never returns secrets / token contents.
+- **Settings section** ([app/profile/_components/SettingsSection.tsx](app/profile/_components/SettingsSection.tsx)) — sits below Integrations. Three subsections:
+  1. **Timezone** — Input + `<datalist>` of ~15 curated IANA zones (Dubai, Berlin, Madrid, London, Lisbon, Athens, Zurich, New York, Chicago, Denver, Los Angeles, Toronto, São Paulo, Singapore, Tokyo); free-text accepted. PATCH on Save / Enter.
+  2. **Master Calendar** — radio list of user's Google calendars (with `primary` badge). Self-fetches `/api/profile/calendars` and listens for `bh:google-status-changed` so disconnect/reconnect re-syncs without a reload. Renders a muted "Connect Google Calendar" note when not connected.
+  3. **Task Type Windows** — table whose rows are derived from Notion's `Task Type` select-property options (fetched live each load, no string-coupling in code). Per row: two `0–23` hour inputs (start, end). PATCH on change with the full array; rows with `start >= end` update visually but are not persisted until valid.
+- Optimistic UI on all PATCHes with sonner toast + snapshot revert on failure. Uses the `tRef` + empty-deps `useEffect` pattern.
+- **Caveat:** the time-block route, briefings route, and other Berlin/09–18 references are *not* wired into `lib/settings` yet — those still use their original hardcoded values. The wire-through is a deliberate follow-up prompt.
+- UI: server-shell `/digest` page mounts client component [app/digest/_components/DailyDigest.tsx](app/digest/_components/DailyDigest.tsx). On mount it GETs `/api/digest/daily` (204 → empty state with "Generate" button). Renders the cached markdown via `react-markdown` (no plugins) using custom `components` mapping for headings/lists/strong/em/a/code/blockquote. "Regenerate" button POSTs `?force=true`. Generated-at indicator shows "Just generated" or a localized relative time.
+- New dependency: `react-markdown` ^10 (no remark/rehype plugins). i18n entries under `digest.*` in [constants/translations.ts](constants/translations.ts) (DE+EN).
+
 **Google OAuth — scaffolded, not yet exercised:**
 - Code path works end-to-end on paper. Awaiting (a) Markus running the migration, (b) Markus clicking "Connect Google" in the top nav once to grant consent.
-- After that, `getAccessToken()` / `getAuthorizedCalendarClient()` are ready for Tab 2 and Tab 3.
+- The daily digest gracefully proceeds without calendar context when not connected (`googleConnected: false` flag passed into the model prompt).
 
 **Not yet built:**
-- Tabs 2–6 (AI Digest, Calendar mirror, Clients, Areas, Resources) — placeholders only.
-- `constants/routes.ts`, `constants/models.ts` (created when first feature needs them).
-- Integration libs: `lib/anthropic.ts`, `lib/zoho.ts`.
-- Supabase tables beyond `google_oauth_tokens` (and that table only after Markus runs the migration).
+- Tabs 3–6 (Calendar mirror, Clients, Areas, Resources) — placeholders only.
+- Tab 2 weekly plan.
+- Settings wire-through: time-block route, briefings route, and any other hardcoded Berlin/09–18 references still need to read from `lib/settings` for timezone, master calendar, and per-task-type working hours. This is the next planned prompt.
+- `constants/routes.ts` (created when first feature needs route constants).
+- Integration libs: `lib/zoho.ts`.
+- Supabase tables beyond `google_oauth_tokens`, `briefings`, `time_block_suggestions`, `user_settings`.
 - Any agents or sub-agents.
 - Notion Areas and Resources DBs (added when Tabs 5 and 6 build).
-- RLS on `google_oauth_tokens` (currently relying on service-role-only access).
+- RLS on `google_oauth_tokens` / `briefings` / `time_block_suggestions` / `user_settings` (currently relying on service-role-only access).
 
-**Next planned step:** Tab 2 — AI Digest. Will create `constants/models.ts` + `lib/anthropic.ts` and the `briefings` Supabase table (second migration).
+**Next planned step:** Settings wire-through (Prompt B). Replace the hardcoded `Europe/Berlin` + `09:00`–`18:00` window in the time-block route, the daily-briefing route, and any other Berlin references with reads from `lib/settings.getUserSettings()`. Master calendar replaces hardcoded `'primary'` in `createBlock` / `getPrimaryBusy`. After that lands, Tab 3 (Calendar mirror).
 
 ## Start-of-Session Checklist
 
