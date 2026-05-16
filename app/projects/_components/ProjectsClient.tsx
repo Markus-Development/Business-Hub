@@ -137,7 +137,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <div
             role="group"
-            aria-label="View"
+            aria-label={t("projects.viewToggle.ariaLabel")}
             className="inline-flex items-center rounded-md border border-border bg-card p-0.5"
           >
             {VIEWS.map((v) => {

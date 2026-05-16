@@ -14,6 +14,7 @@ import { ExternalLink, GripVertical } from "lucide-react";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { STATUSES, type Priority, type Status } from "@/constants/priorities";
+import type { TranslationKey } from "@/constants/translations";
 import type { Project } from "@/lib/notion";
 import type { UpdateField } from "./api";
 
@@ -106,7 +107,7 @@ function KanbanColumn({
   emptyLabel: string;
   dateFormatter: Intl.DateTimeFormat;
   onOpenProject: (pageId: string) => void;
-  t: (key: any) => string;
+  t: (key: TranslationKey) => string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -150,7 +151,7 @@ function KanbanCard({
   project: Project;
   dateFormatter: Intl.DateTimeFormat;
   onOpenProject: (pageId: string) => void;
-  t: (key: any) => string;
+  t: (key: TranslationKey) => string;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: project.id,
@@ -218,7 +219,7 @@ function KanbanCard({
           href={project.url}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open in Notion"
+          aria-label={t("projects.drawer.openInNotion")}
           className="shrink-0 rounded p-1 text-muted-foreground/60 opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
         >
           <ExternalLink className="size-3" aria-hidden />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClientProject, listProjectsByClient } from "@/lib/notion";
+import { isInCurrentMonth } from "@/lib/tz";
 import { MONTHLY_TASK_NAMES, type MonthlyTaskName } from "@/constants/client-tasks";
 
 export const runtime = "nodejs";
@@ -15,14 +16,6 @@ function endOfMonthIso(): string {
   // Day 0 of next month == last day of this month.
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
   return end.toISOString().slice(0, 10);
-}
-
-function isInCurrentMonth(iso: string | null): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return false;
-  const now = new Date();
-  return d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ zohoId: string }> }) {

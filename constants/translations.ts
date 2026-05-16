@@ -20,6 +20,7 @@ export const translations = {
   "projects.view.table": { de: "Tabelle", en: "Table" },
   "projects.view.kanban": { de: "Kanban", en: "Kanban" },
   "projects.view.calendar": { de: "Kalender", en: "Calendar" },
+  "projects.viewToggle.ariaLabel": { de: "Ansicht", en: "View" },
 
   "projects.calendar.noDeadline": { de: "Kein Fälligkeitsdatum", en: "No deadline" },
 
@@ -221,6 +222,7 @@ export const translations = {
   },
   "settings.tz.save": { de: "Speichern", en: "Save" },
   "settings.tz.currentValue": { de: "Aktuell", en: "Current" },
+  "settings.tz.placeholder": { de: "Kontinent/Stadt", en: "Continent/City" },
 
   "settings.cal.title": { de: "Hauptkalender", en: "Master Calendar" },
   "settings.cal.description": {

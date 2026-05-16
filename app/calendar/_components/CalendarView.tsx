@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import deLocale from "@fullcalendar/core/locales/de";
@@ -12,32 +11,33 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLocale, useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import type { CalendarEvent } from "@/lib/google";
 import { ROUTES } from "@/constants/routes";
 import { EventDialog, type EventDraft, type EventEdit } from "./EventDialog";
 import { PendingSuggestionDialog, type PendingSuggestion } from "./PendingSuggestionPopover";
-
-type CalendarEvent = {
-  id: string;
-  summary: string;
-  description: string | null;
-  start: string | null;
-  end: string | null;
-  htmlLink: string | null;
-};
-
-type ViewKey = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 
 type ProjectOption = { id: string; name: string };
 
 type Range = { start: string; end: string };
 
-const VIEW_STORAGE_KEY = "bh.calendar.view";
 const SUGGESTION_PREFIX = "pending:";
 
-function isViewKey(v: string): v is ViewKey {
-  return v === "timeGridDay" || v === "timeGridWeek" || v === "dayGridMonth";
-}
+// Google Calendar's event-colour palette (colorId "1"–"11"). Canonical hex values
+// from Google's own UI — keep this in lockstep with what the Google Calendar
+// product surfaces so colours feel consistent for the user.
+const GOOGLE_COLOR_MAP: Record<string, string> = {
+  "1": "#7986cb", // Lavender
+  "2": "#33b679", // Sage
+  "3": "#8e24aa", // Grape
+  "4": "#e67c73", // Flamingo
+  "5": "#f6bf26", // Banana
+  "6": "#f4511e", // Tangerine
+  "7": "#039be5", // Peacock
+  "8": "#616161", // Graphite
+  "9": "#3f51b5", // Blueberry
+  "10": "#0b8043", // Basil
+  "11": "#d50000", // Tomato
+};
 
 function toInputDateTime(iso: string): string {
   // datetime-local expects "YYYY-MM-DDTHH:mm" in the user's local time.
@@ -63,7 +63,6 @@ export function CalendarView({
   const t = useT();
   const [locale] = useLocale();
 
-  const [view, setView] = useState<ViewKey>("timeGridWeek");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [pending, setPending] = useState<PendingSuggestion[]>([]);
   const [range, setRange] = useState<Range | null>(null);
@@ -82,29 +81,6 @@ export function CalendarView({
   const calendarRef = useRef<FullCalendar | null>(null);
   const tRef = useRef(t);
   tRef.current = t;
-
-  // Restore persisted view on mount (avoids SSR/CSR mismatch).
-  useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(VIEW_STORAGE_KEY);
-      if (v && isViewKey(v)) setView(v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const changeView = useCallback((next: ViewKey) => {
-    setView(next);
-    try {
-      window.localStorage.setItem(VIEW_STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
-    // Drive the FC api directly so the view switch is in-place rather than via
-    // the `key`-based remount fallback. Falls back gracefully if the ref isn't set.
-    const api = calendarRef.current?.getApi();
-    api?.changeView(next);
-  }, []);
 
   // Imperative toolbar handlers. Wrap getApi() calls so a missing ref doesn't crash.
   const goPrev = useCallback(() => calendarRef.current?.getApi().prev(), []);
@@ -155,13 +131,22 @@ export function CalendarView({
   const fcEvents = useMemo<EventInput[]>(() => {
     const real: EventInput[] = events
       .filter((e) => e.start)
-      .map((e) => ({
-        id: e.id,
-        title: e.summary,
-        start: e.start ?? undefined,
-        end: e.end ?? undefined,
-        extendedProps: { description: e.description, htmlLink: e.htmlLink },
-      }));
+      .map((e) => {
+        // FullCalendar inlines `backgroundColor` as a `--fc-event-bg-color` CSS variable
+        // on the event element; calendar.css falls back to var(--primary) when unset,
+        // so leaving these undefined gives the default-coloured Google events the
+        // app's primary blue.
+        const colour = e.colorId ? GOOGLE_COLOR_MAP[e.colorId] : undefined;
+        return {
+          id: e.id,
+          title: e.summary,
+          start: e.start ?? undefined,
+          end: e.end ?? undefined,
+          backgroundColor: colour,
+          borderColor: colour,
+          extendedProps: { description: e.description, htmlLink: e.htmlLink },
+        };
+      });
     // Pending suggestions carry a className so the scoped calendar.css can paint them
     // with the muted/dashed style. Inline backgroundColor stayed in place historically
     // but was being overridden by the new high-specificity primary-blue rule.
@@ -222,6 +207,7 @@ export function CalendarView({
         start: startIso,
         end: endIso,
         htmlLink: null,
+        colorId: null,
       };
       setEvents((prev) => [...prev, optimistic]);
       try {
@@ -344,6 +330,7 @@ export function CalendarView({
               start: suggestion.start_at,
               end: suggestion.end_at,
               htmlLink: null,
+              colorId: null,
             },
           ]);
         } else if (range) {
@@ -401,12 +388,6 @@ export function CalendarView({
     );
   }
 
-  const viewButtons: { key: ViewKey; labelKey: "calendar.view.day" | "calendar.view.week" | "calendar.view.month" }[] = [
-    { key: "timeGridDay", labelKey: "calendar.view.day" },
-    { key: "timeGridWeek", labelKey: "calendar.view.week" },
-    { key: "dayGridMonth", labelKey: "calendar.view.month" },
-  ];
-
   return (
     <div className="mx-auto min-w-[1240px] max-w-screen-2xl px-6 py-6">
       <header className="mb-4 flex items-center justify-between gap-4">
@@ -414,58 +395,38 @@ export function CalendarView({
       </header>
 
       {/* Custom Google-style toolbar — replaces FullCalendar's default chrome. */}
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goToday}>
-            {t("calendar.toolbar.today")}
-          </Button>
-          <div className="inline-flex">
-            <button
-              type="button"
-              onClick={goPrev}
-              aria-label={t("calendar.toolbar.prev")}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              aria-label={t("calendar.toolbar.next")}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-          <span className="ml-1 text-sm font-medium text-foreground" aria-live="polite">
-            {toolbarLabel}
-          </span>
+      <div className="mb-3 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={goToday}>
+          {t("calendar.toolbar.today")}
+        </Button>
+        <div className="inline-flex">
+          <button
+            type="button"
+            onClick={goPrev}
+            aria-label={t("calendar.toolbar.prev")}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            aria-label={t("calendar.toolbar.next")}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
-
-        <div className="inline-flex rounded-md border border-border bg-card p-0.5 text-sm">
-          {viewButtons.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => changeView(b.key)}
-              className={cn(
-                "rounded px-3 py-1 transition-colors",
-                view === b.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t(b.labelKey)}
-            </button>
-          ))}
-        </div>
+        <span className="ml-1 text-sm font-medium text-foreground" aria-live="polite">
+          {toolbarLabel}
+        </span>
       </div>
 
       <div className="bh-calendar overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
         <FullCalendar
           ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView={view}
+          plugins={[timeGridPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
           events={fcEvents}
           locale={locale === "de" ? deLocale : enLocale}
           firstDay={1}

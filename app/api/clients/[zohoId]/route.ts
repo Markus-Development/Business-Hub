@@ -12,6 +12,7 @@ import {
   getContactLifetimeTurnover,
   type ZohoInvoice,
 } from "@/lib/zoho";
+import { isInCurrentMonth } from "@/lib/tz";
 
 export const runtime = "nodejs";
 
@@ -23,14 +24,6 @@ export type ClientDetail = {
   lifetimeTurnover: number;
   monthlyTasks: Project[];
 };
-
-function isInCurrentMonth(iso: string | null): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return false;
-  const now = new Date();
-  return d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
-}
 
 export async function GET(_req: Request, ctx: { params: Promise<{ zohoId: string }> }) {
   const { zohoId } = await ctx.params;

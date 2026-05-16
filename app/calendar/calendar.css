@@ -85,20 +85,21 @@
   color: var(--primary);
 }
 
-/* Events: flat primary-coloured blocks, 4px radius, 12px white text. */
+/* Events: flat blocks, 4px radius, 12px white text.
+ * Colour defers to FullCalendar's per-event inline `--fc-event-bg-color`
+ * (set from the event's `backgroundColor` prop — e.g. Google's per-event
+ * colorId) when present, otherwise falls back to var(--primary). The earlier
+ * version hardcoded `background: var(--primary)` and lost per-event colours. */
 .bh-calendar .fc-timegrid-event,
 .bh-calendar .fc-daygrid-event {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
+  background-color: var(--fc-event-bg-color, var(--primary));
+  color: var(--fc-event-text-color, var(--primary-foreground));
+  border: 1px solid var(--fc-event-border-color, var(--primary));
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
   padding: 2px 6px;
   box-shadow: none;
-  --fc-event-bg-color: var(--primary);
-  --fc-event-text-color: var(--primary-foreground);
-  --fc-event-border-color: var(--primary);
 }
 .bh-calendar .fc-event-title,
 .bh-calendar .fc-event-time {

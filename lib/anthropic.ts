@@ -5,7 +5,7 @@ import { MODELS } from "@/constants/models";
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
-export const anthropic = new Anthropic({ apiKey });
+const anthropic = new Anthropic({ apiKey });
 
 export function briefing(prompt: string, system?: string) {
   return anthropic.messages.create({
@@ -13,15 +13,6 @@ export function briefing(prompt: string, system?: string) {
     max_tokens: 2048,
     ...(system ? { system } : {}),
     messages: [{ role: "user", content: prompt }],
-  });
-}
-
-export function classify(text: string, system?: string) {
-  return anthropic.messages.create({
-    model: MODELS.CLASSIFY,
-    max_tokens: 256,
-    ...(system ? { system } : {}),
-    messages: [{ role: "user", content: text }],
   });
 }
 
@@ -33,4 +24,13 @@ export async function pingAnthropic(): Promise<void> {
     max_tokens: 1,
     messages: [{ role: "user", content: "ok" }],
   });
+}
+
+// Unwraps an Anthropic `messages.create` response into plain text. Concatenates
+// every text-typed content block with newlines and trims.
+export function extractText(response: Awaited<ReturnType<typeof briefing>>): string {
+  return response.content
+    .flatMap((b) => (b.type === "text" ? [b.text] : []))
+    .join("\n")
+    .trim();
 }

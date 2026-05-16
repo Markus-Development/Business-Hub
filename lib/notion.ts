@@ -2,7 +2,7 @@ import "server-only";
 import { Client } from "@notionhq/client";
 import type { Priority, Status } from "@/constants/priorities";
 
-export const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 // Lightweight health check — verifies the token by calling users.me().
 export async function pingNotion(): Promise<{ name: string | null }> {
@@ -212,7 +212,6 @@ async function fetchBlockChildren(blockId: string): Promise<NotionBlock[]> {
 }
 
 // Fetches the page body block tree, one level of nesting. Live API call on every drawer open.
-// TODO: cache by (pageId, page.last_edited_time) in Supabase if drawer-open latency becomes noticeable.
 export async function getPageBlocks(pageId: string): Promise<NotionBlock[]> {
   const top = await fetchBlockChildren(pageId);
   for (const block of top) {

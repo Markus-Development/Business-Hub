@@ -245,7 +245,7 @@ export function SettingsSection() {
                     handleZoneSave();
                   }
                 }}
-                placeholder="Continent/City"
+                placeholder={t("settings.tz.placeholder")}
                 className="w-72 font-mono"
               />
               <datalist id="bh-tz-list">

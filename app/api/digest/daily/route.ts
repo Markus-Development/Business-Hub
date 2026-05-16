@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { listActiveProjects } from "@/lib/notion";
 import { getAuthorizedCalendarClient, isGoogleConnected } from "@/lib/google";
-import { briefing } from "@/lib/anthropic";
+import { briefing, extractText } from "@/lib/anthropic";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUserSettings } from "@/lib/settings";
+import { todayInTz, tzOffsetMs } from "@/lib/tz";
 import { TABLES } from "@/constants/tables";
 import { MODELS } from "@/constants/models";
 
@@ -50,49 +51,12 @@ type Inputs = {
   events: TrimmedEvent[] | null;
 };
 
-function todayInTz(timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  return `${y}-${m}-${d}`;
-}
-
 function endOfTodayIso(timezone: string): string {
   // 23:59:59.999 local time of today in `timezone`, returned as UTC ISO.
   const date = todayInTz(timezone);
   const utcMidnightEnd = new Date(`${date}T23:59:59.999Z`);
   const offsetMs = tzOffsetMs(utcMidnightEnd, timezone);
   return new Date(utcMidnightEnd.getTime() - offsetMs).toISOString();
-}
-
-function tzOffsetMs(at: Date, timezone: string): number {
-  // Returns the given timezone's local offset from UTC in ms at the given instant.
-  const localParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-  const get = (t: string) => Number(localParts.find((p) => p.type === t)!.value);
-  const asUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour") % 24,
-    get("minute"),
-    get("second"),
-  );
-  return asUtc - at.getTime();
 }
 
 function canonicalStringify(value: unknown): string {
@@ -225,13 +189,6 @@ async function insertBriefing(row: {
     .single();
   if (error) throw new Error(`Failed to persist briefing: ${error.message}`);
   return (data as { created_at: string }).created_at;
-}
-
-function extractText(response: Awaited<ReturnType<typeof briefing>>): string {
-  return response.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("\n")
-    .trim();
 }
 
 export async function GET() {

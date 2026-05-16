@@ -75,11 +75,6 @@ export const INDUSTRIES = [
   "Hospitality",
   "Other",
 ] as const;
-export type Industry = (typeof INDUSTRIES)[number];
-
-export function isOverdue(invoice: ZohoInvoice): boolean {
-  return invoice.status === "overdue";
-}
 
 export function clientHealth(
   c: Pick<MergedClient, "outstandingAmount">,

@@ -15,7 +15,7 @@ type TokenRow = {
   access_token_expires_at: string | null;
 };
 
-export function getOAuthClient(): OAuth2Client {
+function getOAuthClient(): OAuth2Client {
   const id = process.env.GOOGLE_CLIENT_ID;
   const secret = process.env.GOOGLE_CLIENT_SECRET;
   const redirect = process.env.GOOGLE_REDIRECT_URI;
@@ -149,7 +149,20 @@ export async function getPrimaryBusy(
   const resp = await calendar.freebusy.query({
     requestBody: { timeMin, timeMax, items: [{ id: calendarId }] },
   });
-  const busy = resp.data.calendars?.[calendarId]?.busy ?? [];
+  // Root cause of the "Sleep ignored" bug: the previous version read
+  // `resp.data.calendars[calendarId]` and fell through to `[]` whenever Google's
+  // response key didn't match the requested id (it resolves "primary" to the user's
+  // actual email, and entries with `errors` carry no `busy` field). Result: silent
+  // empty busy → entire workday treated as free → blocks proposed during busy events.
+  // Fix: take the single entry by value (we only request one calendar) and surface
+  // any API-level errors instead of swallowing them.
+  const entries = Object.values(resp.data.calendars ?? {});
+  const entry = entries[0];
+  if (entry?.errors && entry.errors.length > 0) {
+    const reasons = entry.errors.map((e) => e.reason ?? "unknown").join(",");
+    throw new Error(`freebusy_errors:${reasons}`);
+  }
+  const busy = entry?.busy ?? [];
   return busy
     .filter((b): b is { start: string; end: string } => !!b.start && !!b.end)
     .map((b) => ({ start: b.start, end: b.end }));
@@ -184,6 +197,9 @@ export type CalendarEvent = {
   start: string | null;
   end: string | null;
   htmlLink: string | null;
+  // Google's per-event color slot ("1"–"11" maps to the 11 Calendar palette colors;
+  // null when the event uses the calendar's default color).
+  colorId: string | null;
 };
 
 function readEventTime(slot: { dateTime?: string | null; date?: string | null } | undefined): string | null {
@@ -214,6 +230,7 @@ export async function listEvents(
       start: readEventTime(e.start ?? undefined),
       end: readEventTime(e.end ?? undefined),
       htmlLink: e.htmlLink ?? null,
+      colorId: e.colorId ?? null,
     }));
 }
 

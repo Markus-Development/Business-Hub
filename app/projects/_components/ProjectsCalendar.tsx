@@ -83,7 +83,7 @@ export function ProjectsCalendar({ items, onOpenProject, onUpdate }: Props) {
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           headerToolbar={{ start: "title", center: "", end: "today prev,next" }}
-          buttonText={{ today: locale === "de" ? "Heute" : "Today" }}
+          buttonText={{ today: t("calendar.toolbar.today") }}
         />
       </div>
 

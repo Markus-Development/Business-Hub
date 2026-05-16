@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { listActiveProjects } from "@/lib/notion";
 import { getPrimaryBusy, isGoogleConnected, type BusyInterval } from "@/lib/google";
-import { briefing } from "@/lib/anthropic";
+import { briefing, extractText } from "@/lib/anthropic";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUserSettings } from "@/lib/settings";
+import { localHourToIso, todayInTz } from "@/lib/tz";
 import { TABLES } from "@/constants/tables";
 import { MODELS } from "@/constants/models";
+import { ROW_COLS, type SuggestionRow } from "./_lib";
 
 export const runtime = "nodejs";
 
@@ -66,49 +68,6 @@ type TrimmedProject = {
   nextAction: string;
   priority: string | null;
 };
-
-function todayInTz(timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  return `${y}-${m}-${d}`;
-}
-
-function tzOffsetMs(at: Date, timezone: string): number {
-  const localParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-  const get = (t: string) => Number(localParts.find((p) => p.type === t)!.value);
-  const asUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour") % 24,
-    get("minute"),
-    get("second"),
-  );
-  return asUtc - at.getTime();
-}
-
-function localHourToIso(date: string, hour: number, timezone: string): string {
-  // hour is 0-23 in the given timezone. Returns UTC ISO string for that instant.
-  const naive = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00.000Z`);
-  const offset = tzOffsetMs(naive, timezone);
-  return new Date(naive.getTime() - offset).toISOString();
-}
 
 function subtractBusy(
   windowStart: string,
@@ -188,13 +147,6 @@ function parseSuggestions(raw: string): ModelSuggestion[] {
   return out.sort((a, b) => Date.parse(a.start_iso) - Date.parse(b.start_iso));
 }
 
-function extractText(response: Awaited<ReturnType<typeof briefing>>): string {
-  return response.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("\n")
-    .trim();
-}
-
 async function readLatestBriefingSummary(date: string): Promise<string | null> {
   const db = supabaseServer();
   const { data, error } = await db
@@ -208,22 +160,6 @@ async function readLatestBriefingSummary(date: string): Promise<string | null> {
   if (error) throw new Error(`Failed to read briefing: ${error.message}`);
   return (data as { summary: string } | null)?.summary ?? null;
 }
-
-type SuggestionRow = {
-  id: string;
-  created_at: string;
-  date: string;
-  project_name: string;
-  start_at: string;
-  end_at: string;
-  rationale: string;
-  status: string;
-  google_event_id: string | null;
-  batch_id: string;
-};
-
-const ROW_COLS =
-  "id, created_at, date, project_name, start_at, end_at, rationale, status, google_event_id, batch_id";
 
 export async function GET() {
   try {
@@ -268,15 +204,27 @@ export async function POST() {
     const windowStart = localHourToIso(date, startHour, settings.timezone);
     const windowEnd = localHourToIso(date, endHour, settings.timezone);
 
+    // Clamp the window start to "now" so we never propose blocks in the past.
+    // ISO Z-suffixed UTC strings compare lexicographically; both inputs are produced
+    // that way by localHourToIso and toISOString.
+    const nowIso = new Date().toISOString();
+    const effectiveWindowStart = nowIso > windowStart ? nowIso : windowStart;
+    if (effectiveWindowStart >= windowEnd) {
+      return NextResponse.json(
+        { ok: false, error: "workday_past" },
+        { status: 409 },
+      );
+    }
+
     // Debug aid: confirm the workday window resolves to the right UTC instants
     // for the configured timezone. Surfaces silent timezone drift in the server log.
     // eslint-disable-next-line no-console
     console.log(
-      `[timeblocks] tz=${settings.timezone} date=${date} window=${startHour}:00-${endHour}:00 → ${windowStart} → ${windowEnd}`,
+      `[timeblocks] tz=${settings.timezone} date=${date} window=${startHour}:00-${endHour}:00 → ${effectiveWindowStart} → ${windowEnd}`,
     );
 
-    const busy = await getPrimaryBusy(windowStart, windowEnd, calendarId);
-    const free = subtractBusy(windowStart, windowEnd, busy);
+    const busy = await getPrimaryBusy(effectiveWindowStart, windowEnd, calendarId);
+    const free = subtractBusy(effectiveWindowStart, windowEnd, busy);
     if (free.length === 0) {
       return NextResponse.json(
         { ok: false, error: "no_free_slots" },
@@ -297,7 +245,7 @@ export async function POST() {
 
     const userPrompt = [
       `Date: ${date} (${settings.timezone})`,
-      `Workday window: ${windowStart} → ${windowEnd}`,
+      `Workday window: ${effectiveWindowStart} → ${windowEnd}`,
       "",
       `Free intervals (${free.length}):`,
       JSON.stringify(free, null, 2),

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listNotionClients, type NotionClient } from "@/lib/notion";
-import { listActiveContacts, type ZohoContact } from "@/lib/zoho";
+import { listActiveContacts } from "@/lib/zoho";
 
 export const runtime = "nodejs";
 
@@ -91,5 +91,3 @@ async function safeNotionClients(): Promise<NotionClient[]> {
     return [];
   }
 }
-
-export type { ZohoContact };

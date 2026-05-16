@@ -44,7 +44,7 @@ function requireEnv(name: string): string {
   return v;
 }
 
-export async function getZohoAccessToken(): Promise<string> {
+async function getZohoAccessToken(): Promise<string> {
   if (tokenCache && tokenCache.expiresAt - Date.now() > ACCESS_TOKEN_REFRESH_BUFFER_MS) {
     return tokenCache.token;
   }
