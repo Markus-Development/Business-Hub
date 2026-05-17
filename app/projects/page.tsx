@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { listActiveProjects } from "@/lib/notion";
 import { ProjectsClient } from "./_components/ProjectsClient";
 
@@ -7,5 +8,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
   const projects = await listActiveProjects();
-  return <ProjectsClient projects={projects} />;
+  // Suspense boundary is required by Next.js when a descendant client component
+  // calls useSearchParams — ProjectsClient reads `?area=` to pre-seed its filter.
+  return (
+    <Suspense fallback={null}>
+      <ProjectsClient projects={projects} />
+    </Suspense>
+  );
 }

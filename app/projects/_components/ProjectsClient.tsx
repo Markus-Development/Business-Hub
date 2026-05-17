@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectsTable } from "./ProjectsTable";
@@ -40,11 +41,18 @@ const FIELD_KEY: Record<UpdateField, keyof Project> = {
 
 export function ProjectsClient({ projects }: { projects: Project[] }) {
   const t = useT();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<View>("table");
   const [items, setItems] = useState<Project[]>(projects);
 
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [areaFilter, setAreaFilter] = useState<string>("");
+  // Pre-seed from `?area=<name>` on mount when the value matches a known Area
+  // (e.g. links from Tab 5's project-count badge). Lazy initialiser intentionally
+  // ignores later URL changes — once mounted, the user's filter selection wins.
+  const [areaFilter, setAreaFilter] = useState<string>(() => {
+    const fromUrl = searchParams.get("area");
+    return fromUrl && (AREAS as readonly string[]).includes(fromUrl) ? fromUrl : "";
+  });
   const [priorityFilter, setPriorityFilter] = useState<string>("");
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);

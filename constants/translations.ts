@@ -480,6 +480,48 @@ export const translations = {
   "clients.notes.title": { de: "Notizen", en: "Notes" },
   "clients.notes.editInNotion": { de: "In Notion bearbeiten", en: "Edit in Notion" },
 
+  "areas.title": { de: "Bereiche", en: "Areas" },
+  "areas.loading": { de: "Bereiche werden geladen …", en: "Loading areas…" },
+  "areas.error": {
+    de: "Bereiche konnten nicht geladen werden.",
+    en: "Could not load areas.",
+  },
+  "areas.empty": {
+    de: "Noch keine Bereiche angelegt.",
+    en: "No areas yet.",
+  },
+  "areas.status.active": { de: "Aktiv", en: "Active" },
+  "areas.status.needsAttention": { de: "Aufmerksamkeit", en: "Needs Attention" },
+  "areas.status.paused": { de: "Pausiert", en: "Paused" },
+  "areas.field.currentMilestone": { de: "Aktueller Meilenstein", en: "Current Milestone" },
+  "areas.field.nextSteps": { de: "Nächste Schritte", en: "Next Steps" },
+  "areas.field.nextFocus": { de: "Nächster Fokus", en: "Next Focus" },
+  "areas.field.goal": { de: "Ziel", en: "Goal" },
+  "areas.field.standard": { de: "Standard", en: "Standard" },
+  "areas.field.healthMetric": { de: "Health-Kennzahl", en: "Health Metric" },
+  "areas.field.milestoneDueDate": { de: "Meilenstein fällig", en: "Milestone Due Date" },
+  "areas.field.status": { de: "Status", en: "Status" },
+  "areas.activeProjects": {
+    de: "{count} aktive Projekte",
+    en: "{count} active projects",
+  },
+  "areas.openInNotion": { de: "In Notion öffnen", en: "Open in Notion" },
+  "areas.editPlaceholder": { de: "Hinzufügen …", en: "Add…" },
+  "areas.drawer.pageBody": { de: "Notizen", en: "Notes" },
+  "areas.noMilestone": {
+    de: "Kein Meilenstein festgelegt.",
+    en: "No milestone set.",
+  },
+  "areas.noNextSteps": {
+    de: "Keine nächsten Schritte.",
+    en: "No next steps.",
+  },
+  "areas.updateSuccess": { de: "Bereich aktualisiert.", en: "Area updated." },
+  "areas.updateError": {
+    de: "Aktualisierung fehlgeschlagen.",
+    en: "Update failed.",
+  },
+
   "google.connect": { de: "Google verbinden", en: "Connect Google" },
   "google.connected.title": {
     de: "Google Kalender verbunden",

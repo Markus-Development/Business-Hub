@@ -440,6 +440,124 @@ export async function createClientProject(input: {
   return toProject(page);
 }
 
+// ===== Areas DB ============================================================
+// The Areas DB is created via scripts/create-areas-db.mjs and seeded from
+// /roadmap.md. NOTION_AREAS_DB_ID must be set in .env.local. Status is a
+// `select` property (NOT `status` like the Projects DB) — filter and update
+// shapes differ accordingly.
+
+export type NotionArea = {
+  id: string;
+  name: string;
+  status: string | null;
+  standard: string;
+  currentMilestone: string;
+  milestoneDueDate: string | null;
+  nextSteps: string;
+  nextFocus: string;
+  goal: string;
+  healthMetric: string;
+  notionUrl: string;
+};
+
+export type AreaUpdateField =
+  | "Current Milestone"
+  | "Next Steps"
+  | "Next Focus"
+  | "Goal"
+  | "Status";
+
+let areasDataSourceId: string | null = null;
+
+async function getAreasDataSourceId(): Promise<string> {
+  if (areasDataSourceId) return areasDataSourceId;
+  const dbId = process.env.NOTION_AREAS_DB_ID;
+  if (!dbId) throw new Error("NOTION_AREAS_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Areas DB has no data_sources — is the integration shared with the database?");
+  areasDataSourceId = ds.id;
+  return ds.id;
+}
+
+function toArea(page: any): NotionArea {
+  const p = page.properties as Record<string, unknown>;
+  return {
+    id: page.id,
+    name: asTitle(requireProp(p, "Name")),
+    status: asSelect(requireProp(p, "Status")),
+    standard: asRichText(requireProp(p, "Standard")),
+    currentMilestone: asRichText(requireProp(p, "Current Milestone")),
+    milestoneDueDate: asDate(requireProp(p, "Milestone Due Date")),
+    nextSteps: asRichText(requireProp(p, "Next Steps")),
+    nextFocus: asRichText(requireProp(p, "Next Focus")),
+    goal: asRichText(requireProp(p, "Goal")),
+    healthMetric: asRichText(requireProp(p, "Health Metric")),
+    notionUrl: page.url,
+  };
+}
+
+export async function listAreas(): Promise<NotionArea[]> {
+  const dataSourceId = await getAreasDataSourceId();
+  const areas: NotionArea[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      sorts: [{ property: "Name", direction: "ascending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        areas.push(toArea(page));
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return areas;
+}
+
+// Status is `select` on the Areas DB (not `status` like Projects). Rich-text
+// fields write an empty array when value is "" so Notion clears the value.
+function buildAreaPropertyBody(field: AreaUpdateField, value: string): Record<string, any> {
+  switch (field) {
+    case "Status":
+      return { Status: { type: "select", select: value ? { name: value } : null } };
+    case "Current Milestone":
+    case "Next Steps":
+    case "Next Focus":
+    case "Goal":
+      return {
+        [field]: {
+          type: "rich_text",
+          rich_text: value ? [{ type: "text", text: { content: value } }] : [],
+        },
+      };
+    default: {
+      const exhaustive: never = field;
+      throw new Error(`Unrecognised area field: ${String(exhaustive)}`);
+    }
+  }
+}
+
+export async function updateAreaField(
+  pageId: string,
+  field: AreaUpdateField,
+  value: string,
+): Promise<void> {
+  const properties = buildAreaPropertyBody(field, value);
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
+}
+
+// Same block tree shape as Projects/Clients. Re-exported under an Area-named
+// alias so callers signal intent at the call site.
+export async function getAreaPageBlocks(pageId: string): Promise<NotionBlock[]> {
+  return getPageBlocks(pageId);
+}
+
 export async function createProject(draft: ProjectDraft): Promise<Project> {
   const dataSourceId = await getProjectsDataSourceId();
   const properties = {

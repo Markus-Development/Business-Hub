@@ -19,6 +19,9 @@ const clientGenerateTasks = (zohoId: string) =>
 const clientNotionPatch = (zohoId: string) =>
   `/api/clients/${encodeURIComponent(zohoId)}/notion`;
 
+const areasBlocks = (id: string) => `/api/areas/${encodeURIComponent(id)}/blocks`;
+const areasUpdate = (id: string) => `/api/areas/${encodeURIComponent(id)}/update`;
+
 export const ROUTES = {
   pages: {
     home: "/",
@@ -55,6 +58,11 @@ export const ROUTES = {
       detail: clientDetail,
       generateTasks: clientGenerateTasks,
       notionPatch: clientNotionPatch,
+    },
+    areas: {
+      list: "/api/areas",
+      blocks: areasBlocks,
+      update: areasUpdate,
     },
     google: {
       connect: "/api/google/connect",

@@ -7,7 +7,7 @@ Internal Next.js application that acts as Markus's primary operating dashboard �
 These rules govern how Claude behaves inside Cowork mode. They apply in addition to all other constraints in this file. Read this section first, every session, before reading anything else.
 
 ### Role
-Claude in Cowork is a senior engineering advisor and prompt author. It does not write, edit, or delete files. All implementation is done by Claude Code in the terminal. Cowork's job is to produce the prompt for Claude Code to execute — and to review what Claude Code returns before the next step.
+Claude in Cowork is a senior engineering advisor and prompt author. It does not write, edit, or delete files. All implementation is done by Claude Code in the terminal. Cowork's job is to produce the prompt for Claude Code to execute — and to review what Claude Code returns before the next step. `roadmap.md` (`/business-hub/roadmap.md`) is a Cowork-managed strategic reference — it is off-limits to Claude Code unless a prompt explicitly names it.
 
 ### Output format
 - Always produce a Claude Code prompt. Never produce code, diffs, or inline solutions.
@@ -108,6 +108,7 @@ Every Claude Code prompt for Business Hub should apply the constraints below. To
 - Do not introduce form state libraries (react-hook-form, formik) unless the task specifically requires complex validation.
 - Do not auto-detect or change locale defaults.
 - Do not add telemetry, analytics, or external logging.
+- Do not read, modify, or reference `roadmap.md` unless the prompt explicitly names it. `roadmap.md` is a strategic and operational reference maintained in Cowork. It is not part of the codebase and must never be touched as a side effect of a feature build, refactor, or CLAUDE.md sync.
 
 ### CLAUDE.md edit policy
 
@@ -526,7 +527,7 @@ NOTION_TOKEN=                 # internal integration token, shared with each DB
 NOTION_PROJECTS_DB_ID=        # 32-char hex of the Projects database
 NOTION_INBOX_DB_ID=           # 32-char hex of the Inbox database
 NOTION_CLIENTS_DB_ID=         # 32-char hex of the Clients database (required for Tab 4)
-NOTION_AREAS_DB_ID=           # 32-char hex of the Areas database (added when Tab 5 builds)
+NOTION_AREAS_DB_ID=           # 32-char hex of the Areas database — created 2026-05-17
 NOTION_RESOURCES_DB_ID=       # 32-char hex of the Resources database (added when Tab 6 builds)
 
 # Google Calendar — OAuth2 web app credentials
@@ -823,6 +824,20 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - Metadata edits PATCH `/api/clients/[zohoId]/notion`; task status cycles use the existing `/api/projects/update` POST; task generation POSTs `/api/clients/[zohoId]/generate-tasks`. All writes are optimistic with sonner toast + revert on failure.
 - i18n entries under `clients.*` in [constants/translations.ts](constants/translations.ts) (DE+EN, including monthly task labels, invoice status labels, WhatsApp templates, and metadata field labels).
 
+**Tab 5 (Areas) — bird's-eye view over the Areas DB:**
+- Server shell [app/areas/page.tsx](app/areas/page.tsx) calls `listAreas()` + `listActiveProjects()` in parallel via `Promise.all`, derives `projectCounts: Record<string, number>` by grouping active projects on their `Area` select in JS (one Notion query, not eight — never per-area), and passes `areas` + `projectCounts` to [app/areas/_components/AreasView.tsx](app/areas/_components/AreasView.tsx). Falls back to an empty payload when `NOTION_AREAS_DB_ID` is missing rather than crashing.
+- [AreasView](app/areas/_components/AreasView.tsx) is the top-level client component: holds `areas` state (seeded from server props), `selectedAreaId` state for the drawer, and a `persist(id, field, value)` helper that performs the optimistic update — patches the in-memory area immediately, PATCHes `/api/areas/[areaId]/update`, and on failure restores the previous value + fires a sonner `areas.updateError` toast. Renders a responsive card grid: 1 col on narrow → 2 at `lg` → 3 at `2xl`.
+- [AreaCard](app/areas/_components/AreaCard.tsx) shows: area name (clickable button — opens the drawer), status pill (Active = `emerald-500/15` bg, Needs Attention = `amber-500/15`, Paused = muted; matches the Clients health-pill precedent, no new theme tokens), inline-editable Current Milestone (single-line — Enter commits, Escape cancels), inline-editable Next Steps (multiline — Enter commits, Shift+Enter inserts a newline, Escape cancels), and an active-project count badge linking to `/projects?area=<name>` (URL-encoded). Both inline editors save on blur as a fallback. A small `Pencil` icon (lucide, 12px) appears on hover beside each editable label.
+- [AreaDrawer](app/areas/_components/AreaDrawer.tsx) is a shadcn `Sheet` (right side, 720px) using the same `MetaRow` 2-column grid pattern as the Projects drawer. Editable rows: **Status** (shadcn `Select` constrained to Active / Needs Attention / Paused — onValueChange fires the PATCH immediately, no blur step), **Current Milestone** (input), **Next Steps** (textarea), **Next Focus** (input), **Goal** (textarea). Read-only rows: **Name** (heading in `SheetHeader`), **Milestone Due Date** (formatted via `Intl.DateTimeFormat` with the current locale), **Standard**, **Health Metric**. Bottom zone lazy-fetches `/api/areas/[areaId]/blocks` and renders the page body via `<PageBodyRenderer />` **imported from [app/projects/_components/PageBodyRenderer.tsx](app/projects/_components/PageBodyRenderer.tsx)** — the component is reused, not copied. Loading state is a 3-line skeleton; empty body falls back to an "Open in Notion" link.
+- Drawer block-fetch effect follows the loop-safe pattern from Standard Prompt Constraints: `useEffect` depends on `[areaId]` only (primitive), guard short-circuits on `if (cache[areaId]) return` — presence of any entry (including in-flight loading state), not loaded data. ESLint `exhaustive-deps` suppressed on the line that omits the cache setter.
+- API routes (all server-only, never return tokens to client):
+  - `GET /api/areas` — calls `listAreas()` + `listActiveProjects()` in parallel, groups counts in JS, returns `{ areas, projectCounts }`. Returns 503 `{ error: "areas_not_configured" }` when `NOTION_AREAS_DB_ID` is unset.
+  - `GET /api/areas/[areaId]/blocks` — returns `{ ok, blocks }` from `getAreaPageBlocks(areaId)`.
+  - `PATCH /api/areas/[areaId]/update` — body `{ field, value }`. Whitelists `field` against the five-value `AreaUpdateField` union; rejects `Status` values outside `["Active", "Needs Attention", "Paused"]` with 400 `value_not_in_enum`. Returns 200 `{ ok: true }`.
+- New helpers in [lib/notion.ts](lib/notion.ts) (all additive — no existing exports modified): `listAreas()` (sorts by Name asc, paginates via `dataSources.query`), `updateAreaField(pageId, field, value)`, `getAreaPageBlocks(pageId)` (thin alias over `getPageBlocks`), types `NotionArea` + `AreaUpdateField`. Module-level `areasDataSourceId` cache mirrors the Projects / Clients pattern — fetched lazily on first call via `databases.retrieve`. **Important shape difference vs Projects:** the Areas DB `Status` is a `select` property, not a `status` property; `updateAreaField` builds `{ Status: { type: "select", select: { name } } }`, and the route's filter shape would be `select.equals` (not `status.equals`). Mixing these silently returns empty results.
+- Constants added: `ROUTES.api.areas.list` (`/api/areas`), `ROUTES.api.areas.blocks(id)`, `ROUTES.api.areas.update(id)` in [constants/routes.ts](constants/routes.ts). 24 `areas.*` i18n keys in [constants/translations.ts](constants/translations.ts) with both `de` and `en` entries, including the `{count} active projects` template used by the card badge.
+- Cross-tab wiring: [app/projects/_components/ProjectsClient.tsx](app/projects/_components/ProjectsClient.tsx) seeds `areaFilter` lazily from `useSearchParams().get("area")`, validated against the `AREAS` constant — so the count-badge link from Tab 5 lands on Tab 1 with the matching filter already applied. The parent [app/projects/page.tsx](app/projects/page.tsx) wraps `ProjectsClient` in `<Suspense>` because `useSearchParams` requires it. Invalid or missing `?area=` values fall back to no filter.
+
 **Profile (integration status + settings surface):**
 - `/profile` ([app/profile/_components/ProfileView.tsx](app/profile/_components/ProfileView.tsx)) lists every integration as a card: name, kind (env / OAuth), status pill (Connected / Error / Not configured / Never connected), checked-at relative time, error message (truncated to ~120 chars, monospaced). A "Re-check all" header button re-runs every check; Google offers Connect / Disconnect actions.
 - Env-based integrations (verified by a live ping): **Notion** (`users.me()`), **Anthropic** (1-token Haiku call, cached 10 min in a module-level variable to avoid burning API on every load — success AND error cached), **Supabase** (`select head:true` on `briefings`).
@@ -843,15 +858,15 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - The daily digest gracefully proceeds without calendar context when not connected (`googleConnected: false` flag passed into the model prompt).
 
 **Not yet built:**
-- Tabs 5–6 (Areas, Resources) — placeholders only.
+- Tab 6 (Resources) — placeholder only.
 - Tab 2 weekly plan.
 - Per-task-type window *routing*: the planner reads the union (min start / max end) across all configured `task_type_windows`, but does not yet match a project's Task Type to that type's specific window.
 - Supabase tables beyond `google_oauth_tokens`, `briefings`, `time_block_suggestions`, `user_settings`.
 - Any agents or sub-agents.
-- Notion Areas and Resources DBs (added when Tabs 5 and 6 build).
+- Notion Resources DB (added when Tab 6 builds).
 - RLS on `google_oauth_tokens` / `briefings` / `time_block_suggestions` / `user_settings` (currently relying on service-role-only access).
 
-**Next planned step:** Tab 5 (Areas). Decide between (a) a new Notion `Areas` DB and (b) deriving Areas from the existing Projects DB `Area` select. Build an `app/areas` server shell + client view that surfaces one card per Area with Current Milestone (1 line, editable inline), Next 1–2 Steps (editable inline), and a count of Active projects linked to the Projects tab filtered by Area.
+**Next planned step:** Tab 6 (Resources) or Tab 2 weekly plan — both are open. Resources is the lowest-daily-use surface per the Capability Priority Order; the weekly plan extends the AI Digest with a 5-day view based on Active projects + deadlines.
 
 ## Start-of-Session Checklist
 
