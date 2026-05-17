@@ -16,6 +16,17 @@ export function briefing(prompt: string, system?: string) {
   });
 }
 
+// Cheap + fast Haiku call for short structured / classification outputs.
+// Same response shape as briefing(), so extractText() works on either.
+export function classify(prompt: string, system?: string) {
+  return anthropic.messages.create({
+    model: MODELS.CLASSIFY,
+    max_tokens: 512,
+    ...(system ? { system } : {}),
+    messages: [{ role: "user", content: prompt }],
+  });
+}
+
 // Cheapest health-check call: 1 input token, 1 output token. Caller is responsible
 // for caching this (see /api/profile/status) — do not loop on it.
 export async function pingAnthropic(): Promise<void> {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { useT } from "@/lib/i18n";
@@ -11,16 +11,64 @@ import type { AreaUpdateField, NotionArea } from "@/lib/notion";
 type Props = {
   area: NotionArea;
   activeProjectCount: number;
+  overdueCount: number;
   onOpen: () => void;
   onPersist: (field: AreaUpdateField, value: string) => void;
 };
 
-export function AreaCard({ area, activeProjectCount, onOpen, onPersist }: Props) {
+// Status-based card backgrounds — at-a-glance health signal without opening
+// the drawer. Matches the Clients-tab health-pill palette (emerald/amber/muted).
+function cardTone(status: string | null): string {
+  switch (status) {
+    case "Active":
+      return "bg-emerald-500/8 border-emerald-200/50 dark:border-emerald-800/40";
+    case "Needs Attention":
+      return "bg-amber-500/8 border-amber-200/50 dark:border-amber-800/40";
+    case "Paused":
+      return "bg-muted/30 border-border";
+    default:
+      return "bg-card border-border";
+  }
+}
+
+function dotTone(status: string | null): string {
+  switch (status) {
+    case "Active":
+      return "bg-emerald-500";
+    case "Needs Attention":
+      return "bg-amber-500";
+    case "Paused":
+    default:
+      return "bg-muted-foreground";
+  }
+}
+
+export function AreaCard({
+  area,
+  activeProjectCount,
+  overdueCount,
+  onOpen,
+  onPersist,
+}: Props) {
   const t = useT();
+
+  // Hide the active-project badge for paused areas with zero active work — the
+  // count is uninformative and clutters the footer. Overdue badge still shows
+  // independently if there happens to be any.
+  const showActiveBadge = !(activeProjectCount === 0 && area.status === "Paused");
+
+  const formattedDue = area.milestoneDueDate
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+        new Date(area.milestoneDueDate),
+      )
+    : null;
 
   return (
     <div
-      className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-border/80"
+      className={cn(
+        "group flex flex-col gap-3 rounded-xl border p-5 shadow-sm transition-colors",
+        cardTone(area.status),
+      )}
     >
       <header className="flex items-start justify-between gap-3">
         <button
@@ -49,17 +97,64 @@ export function AreaCard({ area, activeProjectCount, onOpen, onPersist }: Props)
         onSave={(v) => onPersist("Next Steps", v)}
       />
 
-      <footer className="mt-1 flex items-center justify-between gap-3">
-        <Link
-          href={`${ROUTES.pages.projects}?area=${encodeURIComponent(area.name)}`}
-          className={cn(
-            "inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
-            activeProjectCount === 0 ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
-          {t("areas.activeProjects").replace("{count}", String(activeProjectCount))}
-        </Link>
+      {formattedDue ? (
+        <div>
+          <FieldLabel>{t("areas.field.milestoneDue")}</FieldLabel>
+          <span className="text-sm text-foreground">{formattedDue}</span>
+        </div>
+      ) : null}
+
+      {area.nextFocus ? (
+        <div>
+          <FieldLabel>{t("areas.field.nextFocus")}</FieldLabel>
+          <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+            {area.nextFocus}
+          </p>
+        </div>
+      ) : null}
+
+      {area.healthMetric ? (
+        <div>
+          <FieldLabel>{t("areas.field.healthMetric")}</FieldLabel>
+          <div className="flex items-start gap-2">
+            <span
+              className={cn("mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full", dotTone(area.status))}
+              aria-hidden
+            />
+            <p className="line-clamp-2 text-sm text-muted-foreground">{area.healthMetric}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <footer className="mt-1 flex flex-wrap items-center gap-2">
+        {showActiveBadge ? (
+          <Link
+            href={`${ROUTES.pages.projects}?area=${encodeURIComponent(area.name)}`}
+            className={cn(
+              "inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
+              activeProjectCount === 0 ? "text-muted-foreground" : "text-foreground",
+            )}
+          >
+            {t("areas.activeProjects").replace("{count}", String(activeProjectCount))}
+          </Link>
+        ) : null}
+        {overdueCount > 0 ? (
+          <Link
+            href={`${ROUTES.pages.projects}?area=${encodeURIComponent(area.name)}`}
+            className="inline-flex items-center rounded-full border border-red-200/50 bg-red-500/15 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-500/25 dark:text-red-300"
+          >
+            {t("areas.overdueProjects").replace("{count}", String(overdueCount))}
+          </Link>
+        ) : null}
       </footer>
+    </div>
+  );
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span>{children}</span>
     </div>
   );
 }

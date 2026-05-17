@@ -7,6 +7,7 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type Row,
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink } from "lucide-react";
@@ -34,7 +35,12 @@ type Props = {
   onOpenProject: (pageId: string) => void;
   statusOptions: SelectOption[];
   areaOptions: SelectOption[];
+  groupByArea?: boolean;
 };
+
+type RowEntry =
+  | { kind: "header"; area: string }
+  | { kind: "row"; row: Row<Project> };
 
 const PRIORITY_ORDER: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
 
@@ -44,6 +50,7 @@ export function ProjectsTable({
   onOpenProject,
   statusOptions,
   areaOptions,
+  groupByArea = false,
 }: Props) {
   const t = useT();
   const [locale] = useLocale();
@@ -213,6 +220,36 @@ export function ProjectsTable({
     getSortedRowModel: getSortedRowModel(),
   });
 
+  // Flat list of row + group-header entries the tbody renders directly. When
+  // grouping is off, just wrap each TanStack row in a `{kind:"row"}` entry.
+  // When on, sort by AREAS index (unknown areas drop to the end) and inject a
+  // header entry whenever the area changes. Grouping is done in JS — TanStack
+  // Table's getGroupedRowModel isn't used here.
+  const rowEntries = useMemo<RowEntry[]>(() => {
+    const rows = table.getRowModel().rows;
+    if (!groupByArea) return rows.map((row) => ({ kind: "row", row }));
+
+    const sorted = [...rows].sort((a, b) => {
+      const ai = (AREAS as readonly string[]).indexOf(a.original.area ?? "");
+      const bi = (AREAS as readonly string[]).indexOf(b.original.area ?? "");
+      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+    });
+
+    const entries: RowEntry[] = [];
+    let lastArea: string | null = null;
+    for (const row of sorted) {
+      const area = row.original.area ?? t("projects.noArea");
+      if (area !== lastArea) {
+        entries.push({ kind: "header", area });
+        lastArea = area;
+      }
+      entries.push({ kind: "row", row });
+    }
+    return entries;
+    // table identity is stable across renders; sorting state already triggers
+    // table.getRowModel() to recompute internally.
+  }, [table, groupByArea, t, sorting]);
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full border-collapse text-left text-sm">
@@ -255,7 +292,7 @@ export function ProjectsTable({
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.length === 0 ? (
+          {rowEntries.length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
@@ -265,15 +302,29 @@ export function ProjectsTable({
               </td>
             </tr>
           ) : (
-            table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-t border-border transition-colors hover:bg-muted/30">
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-2.5 align-middle">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            rowEntries.map((entry) =>
+              entry.kind === "header" ? (
+                <tr key={`group-${entry.area}`}>
+                  <td
+                    colSpan={columns.length}
+                    className="bg-muted/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {entry.area}
                   </td>
-                ))}
-              </tr>
-            ))
+                </tr>
+              ) : (
+                <tr
+                  key={entry.row.id}
+                  className="border-t border-border transition-colors hover:bg-muted/30"
+                >
+                  {entry.row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-4 py-2.5 align-middle">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ),
+            )
           )}
         </tbody>
       </table>

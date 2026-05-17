@@ -28,6 +28,8 @@ export type CreateDraft = {
   priority: string;
   dueDate: string | null;
   nextAction: string;
+  // Optional free-text page body. Server splits on newline into paragraph blocks.
+  body?: string;
 };
 
 export async function postProjectCreate(

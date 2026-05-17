@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ActionSuggester } from "./ActionSuggester";
 import { PageBodyRenderer } from "./PageBodyRenderer";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,7 @@ export function ProjectDrawer({ project, open, onOpenChange, onUpdate }: Props) 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-[720px] flex-col gap-0 p-0 sm:max-w-[720px]"
+        className="flex w-[min(90vw,1400px)] flex-col gap-0 p-0 sm:max-w-[min(90vw,1400px)]"
       >
         <SheetHeader className="border-b border-border px-5 py-4">
           <SheetTitle className="sr-only">{t("projects.drawer.title")}</SheetTitle>
@@ -177,6 +178,23 @@ export function ProjectDrawer({ project, open, onOpenChange, onUpdate }: Props) 
             <section className="px-5 py-4">
               <PageBody pageId={project.id} notionUrl={project.url} />
             </section>
+
+            {project && (
+              <div className="px-5 pb-4">
+                <ActionSuggester
+                  project={{
+                    id: project.id,
+                    name: project.name,
+                    area: project.area,
+                    priority: project.priority,
+                    dueDate: project.dueDate,
+                    nextAction: project.nextAction,
+                    estimatedMinutes: project.estimatedMinutes,
+                  }}
+                  onAccept={(step) => onUpdate(project.id, "Next Action", step)}
+                />
+              </div>
+            )}
           </div>
         ) : null}
 

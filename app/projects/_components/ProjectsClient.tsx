@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Layers, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectsTable } from "./ProjectsTable";
 import { ProjectsKanban } from "./ProjectsKanban";
@@ -54,6 +54,9 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     return fromUrl && (AREAS as readonly string[]).includes(fromUrl) ? fromUrl : "";
   });
   const [priorityFilter, setPriorityFilter] = useState<string>("");
+  // Group-by-area is a table-only display mode. Preserved across view switches —
+  // re-appears with active state when the user returns to the table view.
+  const [groupByArea, setGroupByArea] = useState<boolean>(false);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -217,6 +220,21 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
               ))}
             </SelectContent>
           </Select>
+          {view === "table" && (
+            <button
+              type="button"
+              onClick={() => setGroupByArea((v) => !v)}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
+                groupByArea
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Layers size={14} aria-hidden />
+              {t("projects.groupByArea")}
+            </button>
+          )}
         </div>
 
         <Button size="sm" onClick={() => setAddOpen(true)}>
@@ -244,6 +262,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
           onOpenProject={openProject}
           statusOptions={statusOptions}
           areaOptions={areaOptions}
+          groupByArea={groupByArea}
         />
       )}
 

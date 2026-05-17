@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 import type { AreaUpdateField, NotionArea } from "@/lib/notion";
@@ -11,10 +13,16 @@ import { AreaDrawer } from "./AreaDrawer";
 type Props = {
   areas: NotionArea[];
   projectCounts: Record<string, number>;
+  overdueCounts: Record<string, number>;
   notConfigured?: boolean;
 };
 
-export function AreasView({ areas: initialAreas, projectCounts, notConfigured }: Props) {
+export function AreasView({
+  areas: initialAreas,
+  projectCounts,
+  overdueCounts,
+  notConfigured,
+}: Props) {
   const t = useT();
   const [areas, setAreas] = useState<NotionArea[]>(initialAreas);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
@@ -91,6 +99,8 @@ export function AreasView({ areas: initialAreas, projectCounts, notConfigured }:
         <h1 className="text-xl font-semibold text-foreground">{t("areas.title")}</h1>
       </header>
 
+      <FocusHeader />
+
       {areas.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("areas.empty")}</p>
       ) : (
@@ -100,6 +110,7 @@ export function AreasView({ areas: initialAreas, projectCounts, notConfigured }:
               key={area.id}
               area={area}
               activeProjectCount={projectCounts[area.name] ?? 0}
+              overdueCount={overdueCounts[area.name] ?? 0}
               onOpen={() => setSelectedAreaId(area.id)}
               onPersist={(field, value) => persist(area.id, field, value)}
             />
@@ -132,4 +143,74 @@ function readField(area: NotionArea, field: AreaUpdateField): string | null {
     case "Goal":
       return area.goal;
   }
+}
+
+type FocusResponse = { summary: string | null; error?: string; cached?: boolean };
+
+// AI-generated strategic summary at the top of the Areas tab. Reads roadmap.md
+// server-side and asks Haiku for a 2–3 sentence focus pointer. Server-side cache
+// has a 1h TTL; the Refresh button busts that cache via ?bust=<ts>.
+function FocusHeader() {
+  const t = useT();
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchFocus = useCallback(async (bust = false) => {
+    setLoading(true);
+    try {
+      const url = bust
+        ? `${ROUTES.api.areas.focus}?bust=${Date.now()}`
+        : ROUTES.api.areas.focus;
+      const res = await fetch(url, { cache: "no-store" });
+      const body = (await res.json()) as FocusResponse;
+      setSummary(body.summary ?? null);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("areas_focus_fetch_failed", err);
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchFocus(false);
+  }, [fetchFocus]);
+
+  if (loading && !summary) {
+    return (
+      <section className="mb-5 rounded-xl border border-primary/15 bg-primary/5 px-5 py-4">
+        <div className="h-4 w-2/3 animate-pulse rounded bg-muted" aria-label={t("areas.focus.loading")} />
+      </section>
+    );
+  }
+
+  if (!summary) return null;
+
+  return (
+    <section className="mb-5 rounded-xl border border-primary/15 bg-primary/5 px-5 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className="text-primary" aria-hidden />
+          <span className="text-xs font-medium uppercase tracking-wide text-primary">
+            {t("areas.focus.title")}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={loading}
+          onClick={() => fetchFocus(true)}
+          className="h-7 gap-1.5 px-2 text-xs"
+        >
+          <RefreshCw size={12} aria-hidden className={loading ? "animate-spin" : undefined} />
+          {t("areas.focus.refresh")}
+        </Button>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-foreground">{summary}</p>
+    </section>
+  );
 }

@@ -7,12 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { notionColour } from "@/constants/priorities";
+import { notionColourBg, notionColourText } from "@/constants/priorities";
 
 export type BadgeOption = {
   value: string;
   label: string;
-  // Notion colour name (default | gray | brown | ...). null → muted-foreground fallback.
+  // Notion colour name (default | gray | brown | ...). null → muted default fallback.
   color: string | null;
 };
 
@@ -26,9 +26,10 @@ type Props = {
   widthClass?: string;
 };
 
-// A Select whose trigger carries a 3px solid left border matching the selected
-// option's Notion `color`. Read state and edit state share the same dimensions,
-// so clicking to edit doesn't visually resize the cell.
+// A Select whose trigger and dropdown items render the selected option as a
+// Notion-style pill (light background + matching text colour). The trigger
+// itself stays a neutral container so the table columns keep stable widths;
+// `h-9 font-sans text-sm` matches the layout of other Projects-table cells.
 export function OptionBadgeSelect({
   value,
   options,
@@ -37,25 +38,35 @@ export function OptionBadgeSelect({
   widthClass = "w-[150px]",
 }: Props) {
   const selected = options.find((o) => o.value === value) ?? null;
-  const accent = notionColour(selected?.color);
 
   return (
     <Select value={value ?? undefined} onValueChange={onChange}>
-      <SelectTrigger
-        className={`h-9 ${widthClass} font-sans text-sm`}
-        style={{ borderLeft: `3px solid ${accent}` }}
-      >
-        <SelectValue placeholder={placeholder} />
+      <SelectTrigger className={`h-9 ${widthClass} font-sans text-sm`}>
+        <SelectValue placeholder={placeholder}>
+          {selected ? (
+            <span
+              style={{
+                background: notionColourBg(selected.color),
+                color: notionColourText(selected.color),
+              }}
+              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+            >
+              {selected.label}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>
             <span
-              className="inline-flex items-center gap-2"
               style={{
-                borderLeft: `3px solid ${notionColour(o.color)}`,
-                paddingLeft: "8px",
+                background: notionColourBg(o.color),
+                color: notionColourText(o.color),
               }}
+              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
             >
               {o.label}
             </span>

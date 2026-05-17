@@ -41,6 +41,7 @@ export const ROUTES = {
       create: "/api/projects/create",
       blocks: projectBlocks,
       options: "/api/projects/options",
+      suggest: "/api/projects/suggest",
     },
     digest: {
       daily: "/api/digest/daily",
@@ -63,6 +64,12 @@ export const ROUTES = {
       list: "/api/areas",
       blocks: areasBlocks,
       update: areasUpdate,
+      focus: "/api/areas/focus",
+    },
+    resources: {
+      list: "/api/resources",
+      create: "/api/resources/create",
+      blocks: (id: string) => `/api/resources/${encodeURIComponent(id)}/blocks`,
     },
     google: {
       connect: "/api/google/connect",

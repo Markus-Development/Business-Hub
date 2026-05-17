@@ -27,3 +27,43 @@ export function notionColour(name: string | null | undefined): string {
   if (!name) return NOTION_COLOUR_MAP.default;
   return NOTION_COLOUR_MAP[name] ?? NOTION_COLOUR_MAP.default;
 }
+
+// Light background fills matching Notion's tag palette — used as the `background`
+// on rendered option pills (Status / Area cells in the Projects table).
+export const NOTION_COLOUR_BG_MAP: Record<string, string> = {
+  default: "rgba(227,226,224,0.5)",
+  gray:    "rgba(227,226,224,0.5)",
+  brown:   "rgba(238,224,218,0.6)",
+  orange:  "rgba(250,222,201,0.6)",
+  yellow:  "rgba(253,236,200,0.6)",
+  green:   "rgba(219,237,219,0.6)",
+  blue:    "rgba(211,229,239,0.6)",
+  purple:  "rgba(232,222,238,0.6)",
+  pink:    "rgba(245,224,233,0.6)",
+  red:     "rgba(255,226,221,0.6)",
+};
+
+// Darker text colours for readability on top of the light fills above. These
+// pair 1:1 with NOTION_COLOUR_BG_MAP entries.
+export const NOTION_COLOUR_TEXT_MAP: Record<string, string> = {
+  default: "#787774",
+  gray:    "#787774",
+  brown:   "#976d57",
+  orange:  "#d9730d",
+  yellow:  "#cb912f",
+  green:   "#448361",
+  blue:    "#337ea9",
+  purple:  "#9065b0",
+  pink:    "#c14c8a",
+  red:     "#d44c47",
+};
+
+export function notionColourBg(name: string | null | undefined): string {
+  if (!name) return NOTION_COLOUR_BG_MAP.default;
+  return NOTION_COLOUR_BG_MAP[name] ?? NOTION_COLOUR_BG_MAP.default;
+}
+
+export function notionColourText(name: string | null | undefined): string {
+  if (!name) return NOTION_COLOUR_TEXT_MAP.default;
+  return NOTION_COLOUR_TEXT_MAP[name] ?? NOTION_COLOUR_TEXT_MAP.default;
+}

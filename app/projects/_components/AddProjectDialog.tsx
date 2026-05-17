@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
+import { ActionSuggester } from "./ActionSuggester";
 import { postProjectCreate } from "./api";
 import { PRIORITIES, STATUSES, type Priority, type Status } from "@/constants/priorities";
 import { AREAS } from "@/constants/areas";
@@ -40,6 +41,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
   const [priority, setPriority] = useState<Priority>("Medium");
   const [dueDate, setDueDate] = useState<string>("");
   const [nextAction, setNextAction] = useState("");
+  const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -53,6 +55,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
     setPriority("Medium");
     setDueDate("");
     setNextAction("");
+    setBody("");
     setSubmitting(false);
     setTouched(false);
   };
@@ -68,6 +71,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
       priority,
       dueDate: dueDate || null,
       nextAction,
+      body,
     });
     setSubmitting(false);
     if (!result.ok || !result.project) {
@@ -88,7 +92,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
         onOpenChange(o);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("projects.add.title")}</DialogTitle>
           <DialogDescription>{t("projects.add.description")}</DialogDescription>
@@ -166,6 +170,28 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
               placeholder={t("projects.add.nextActionPlaceholder")}
             />
           </Field>
+
+          <Field label={t("projects.add.notes")}>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={t("projects.add.notesPlaceholder")}
+              rows={4}
+              className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </Field>
+
+          <ActionSuggester
+            project={{
+              name: name.trim() || "(draft)",
+              area: area || null,
+              priority,
+              dueDate: dueDate || null,
+              nextAction: nextAction || null,
+              estimatedMinutes: null,
+            }}
+            onAccept={(step) => setNextAction(step)}
+          />
         </div>
 
         <DialogFooter>

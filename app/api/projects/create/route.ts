@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createProject, type ProjectDraft } from "@/lib/notion";
+import { appendTextBlocks, createProject, type ProjectDraft } from "@/lib/notion";
 import { PRIORITIES, STATUSES, type Priority, type Status } from "@/constants/priorities";
 import { AREAS } from "@/constants/areas";
 
@@ -12,6 +12,7 @@ type Body = {
   priority?: unknown;
   dueDate?: unknown;
   nextAction?: unknown;
+  body?: unknown;
 };
 
 function bad(error: string) {
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
     return bad("invalid_json");
   }
 
-  const { name, status, area, priority, dueDate, nextAction } = body;
+  const { name, status, area, priority, dueDate, nextAction, body: pageBody } = body;
 
   if (typeof name !== "string" || name.trim().length === 0) return bad("missing_name");
   if (typeof status !== "string" || !(STATUSES as readonly string[]).includes(status)) return bad("invalid_status");
@@ -36,6 +37,10 @@ export async function POST(req: Request) {
     return bad("invalid_date");
   }
   if (typeof nextAction !== "string") return bad("invalid_nextAction");
+  // `body` is optional: undefined/null/string accepted; anything else rejected.
+  if (pageBody !== undefined && pageBody !== null && typeof pageBody !== "string") {
+    return bad("invalid_body");
+  }
 
   const draft: ProjectDraft = {
     name: name.trim(),
@@ -48,6 +53,15 @@ export async function POST(req: Request) {
 
   try {
     const project = await createProject(draft);
+    // Non-fatal: the page exists even if the block append fails. We log a
+    // warning and still return the created project so the UI doesn't show
+    // a misleading error for a partial success.
+    if (typeof pageBody === "string" && pageBody.trim()) {
+      await appendTextBlocks(project.id, pageBody).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn("append_blocks_failed", err);
+      });
+    }
     return NextResponse.json({ ok: true, project });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown_error";

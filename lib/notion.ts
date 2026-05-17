@@ -574,3 +574,173 @@ export async function createProject(draft: ProjectDraft): Promise<Project> {
   })) as any;
   return toProject(page);
 }
+
+// ===== Resources DB ========================================================
+// Tab 6's source of truth. NOTION_RESOURCES_DB_ID must be set; missing env
+// surfaces a clear error rather than failing silently. The `Confidence`
+// property's actual type in Notion isn't pinned down (could be select / number
+// / formula), so the extractor below tries each shape defensively.
+
+export type NotionResource = {
+  id: string;
+  name: string;
+  area: string | null;
+  type: string | null;
+  status: string | null;
+  confidence: string | null;
+  source: string | null;
+  summary: string | null;
+  tags: string[];
+  lastReviewed: string | null;
+  created: string;
+  notionUrl: string;
+};
+
+export type ResourceDraft = {
+  name: string;
+  area: string | null;
+  type: string | null;
+  body: string;
+};
+
+let resourcesDataSourceId: string | null = null;
+
+async function getResourcesDataSourceId(): Promise<string> {
+  if (resourcesDataSourceId) return resourcesDataSourceId;
+  const dbId = process.env.NOTION_RESOURCES_DB_ID;
+  if (!dbId) throw new Error("NOTION_RESOURCES_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Resources DB has no data_sources — is the integration shared with the database?");
+  resourcesDataSourceId = ds.id;
+  return ds.id;
+}
+
+function asMultiSelect(prop: any): string[] {
+  if (!prop || prop.type !== "multi_select") return [];
+  return (prop.multi_select ?? []).map((o: { name: string }) => o.name);
+}
+
+// Confidence's type isn't fixed in the Notion schema. Probe each plausible
+// shape and stringify whatever non-null value we find; return null otherwise.
+function asConfidence(prop: any): string | null {
+  if (!prop) return null;
+  try {
+    if (prop.type === "select") return prop.select?.name ?? null;
+    if (prop.type === "number") return prop.number != null ? String(prop.number) : null;
+    if (prop.type === "rich_text") return asRichText(prop) || null;
+    if (prop.type === "formula") {
+      const f = prop.formula;
+      if (!f) return null;
+      if (f.type === "string") return f.string ?? null;
+      if (f.type === "number") return f.number != null ? String(f.number) : null;
+      if (f.type === "boolean") return f.boolean === true ? "true" : f.boolean === false ? "false" : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function toResource(page: any): NotionResource {
+  const p = page.properties as Record<string, unknown>;
+  // We don't use `requireProp` here — the Resources DB may be authored loosely
+  // and a missing property shouldn't crash the whole list query. Each safe
+  // extractor below tolerates `undefined` and returns its empty default.
+  const get = (n: string) => p[n] as any;
+  return {
+    id: page.id,
+    name: asTitle(get("Name")),
+    area: asSelect(get("Area")),
+    type: asSelect(get("Type")),
+    status: asSelect(get("Status")),
+    confidence: asConfidence(get("Confidence")),
+    source: asUrl(get("Source")),
+    summary: asRichText(get("Summary")) || null,
+    tags: asMultiSelect(get("Tags")),
+    lastReviewed: asDate(get("Last Reviewed")),
+    created: page.created_time ?? "",
+    notionUrl: page.url,
+  };
+}
+
+export async function listResources(): Promise<NotionResource[]> {
+  const dataSourceId = await getResourcesDataSourceId();
+  const resources: NotionResource[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 200 to avoid runaway pagination on an unexpectedly large DB.
+  for (let pageCount = 0; pageCount < 2; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      sorts: [{ property: "Name", direction: "ascending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        resources.push(toResource(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return resources;
+}
+
+// Same block tree shape as Projects/Areas. Thin alias over `getPageBlocks` so
+// the Resources drawer's call site signals intent.
+export async function getResourcePageBlocks(pageId: string): Promise<NotionBlock[]> {
+  return getPageBlocks(pageId);
+}
+
+export async function createResource(draft: ResourceDraft): Promise<NotionResource> {
+  const dataSourceId = await getResourcesDataSourceId();
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: draft.name } }] },
+  };
+  if (draft.area) {
+    properties.Area = { type: "select", select: { name: draft.area } };
+  }
+  if (draft.type) {
+    properties.Type = { type: "select", select: { name: draft.type } };
+  }
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  if (draft.body && draft.body.trim()) {
+    await appendTextBlocks(page.id, draft.body);
+  }
+  return toResource(page);
+}
+
+/**
+ * Append free-form text to a Notion page as paragraph blocks. Each line of
+ * text becomes one paragraph block; empty lines become empty paragraphs
+ * (preserving the user's spacing intent). No-ops silently when text is blank.
+ *
+ * Notion's append API caps `children` at 100 per call, so longer inputs are
+ * split into successive batched appends in order.
+ */
+export async function appendTextBlocks(pageId: string, text: string): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const lines = trimmed.split("\n");
+  const children = lines.map((line) => ({
+    type: "paragraph" as const,
+    paragraph: {
+      rich_text: line
+        ? [{ type: "text" as const, text: { content: line } }]
+        : [],
+    },
+  }));
+  for (let i = 0; i < children.length; i += 100) {
+    await notion.blocks.children.append({
+      block_id: pageId,
+      children: children.slice(i, i + 100),
+    });
+  }
+}

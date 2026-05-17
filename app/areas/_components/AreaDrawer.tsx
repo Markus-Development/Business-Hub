@@ -53,7 +53,10 @@ export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[720px] flex-col gap-0 p-0 sm:max-w-[720px]">
+      <SheetContent
+        side="right"
+        className="flex w-[min(90vw,1400px)] flex-col gap-0 p-0 sm:max-w-[min(90vw,1400px)]"
+      >
         <SheetHeader className="border-b border-border px-5 py-4">
           <SheetTitle className="sr-only">{area?.name ?? t("areas.title")}</SheetTitle>
           {area ? (

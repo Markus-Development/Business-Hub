@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLocale, useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/lib/google";
 import { ROUTES } from "@/constants/routes";
 import { EventDialog, type EventDraft, type EventEdit } from "./EventDialog";
@@ -19,8 +20,25 @@ import { PendingSuggestionDialog, type PendingSuggestion } from "./PendingSugges
 type ProjectOption = { id: string; name: string };
 
 type Range = { start: string; end: string };
+type CalView = "day" | "week" | "custom";
 
 const SUGGESTION_PREFIX = "pending:";
+
+const VIEW_STORAGE_KEY = "bh.calendar.view";
+const CUSTOM_START_KEY = "bh.calendar.custom.start";
+const CUSTOM_END_KEY = "bh.calendar.custom.end";
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function addDaysStr(d: string, n: number): string {
+  return new Date(new Date(d).getTime() + n * 86400000).toISOString().slice(0, 10);
+}
+// FullCalendar treats custom-range `end` as EXCLUSIVE. The picker gives us
+// inclusive dates, so we shift by one day before handing off to FC.
+function nextDayOf(d: string): string {
+  return addDaysStr(d, 1);
+}
 
 // Google Calendar's event-colour palette (colorId "1"–"11"). Canonical hex values
 // from Google's own UI — keep this in lockstep with what the Google Calendar
@@ -75,6 +93,12 @@ export function CalendarView({
   // the current view (e.g. "May 13 – 19, 2026") so it stays accurate across all views.
   const [toolbarLabel, setToolbarLabel] = useState<string>("");
 
+  // View switcher state. `custom` mode shows a date-range picker row below the
+  // toolbar and renders an arbitrary day range via FC's `changeView('timeGrid', { start, end })`.
+  const [calView, setCalView] = useState<CalView>("week");
+  const [customStart, setCustomStart] = useState<string>(() => todayStr());
+  const [customEnd, setCustomEnd] = useState<string>(() => addDaysStr(todayStr(), 6));
+
   // Refs:
   // - calendarRef: imperative handle for prev/next/today/changeView from our custom toolbar.
   // - tRef: keep latest t in a ref so mount-only fetch effects don't refetch on locale toggle.
@@ -86,6 +110,47 @@ export function CalendarView({
   const goPrev = useCallback(() => calendarRef.current?.getApi().prev(), []);
   const goNext = useCallback(() => calendarRef.current?.getApi().next(), []);
   const goToday = useCallback(() => calendarRef.current?.getApi().today(), []);
+
+  // Applies the current customStart/customEnd to FullCalendar's imperative API
+  // and persists both endpoints. `end` is exclusive in FC's custom-range API,
+  // so we hand it `nextDayOf(customEnd)`.
+  const applyCustomRange = useCallback(() => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    api.changeView("timeGrid", { start: customStart, end: nextDayOf(customEnd) });
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, "custom");
+      window.localStorage.setItem(CUSTOM_START_KEY, customStart);
+      window.localStorage.setItem(CUSTOM_END_KEY, customEnd);
+    } catch {
+      /* private mode / quota — non-critical */
+    }
+    setCalView("custom");
+  }, [customStart, customEnd]);
+
+  const switchView = useCallback(
+    (v: CalView) => {
+      const api = calendarRef.current?.getApi();
+      if (!api) return;
+      if (v === "day") {
+        api.changeView("timeGridDay");
+        setCalView("day");
+        try {
+          window.localStorage.setItem(VIEW_STORAGE_KEY, "day");
+        } catch {}
+      } else if (v === "week") {
+        api.changeView("timeGridWeek");
+        setCalView("week");
+        try {
+          window.localStorage.setItem(VIEW_STORAGE_KEY, "week");
+        } catch {}
+      } else {
+        // Custom: applyCustomRange handles both the view change and persistence.
+        applyCustomRange();
+      }
+    },
+    [applyCustomRange],
+  );
 
   const loadEvents = useCallback(async (r: Range) => {
     try {
@@ -121,6 +186,37 @@ export function CalendarView({
     if (!connected) return;
     void loadPending();
   }, [connected, loadPending]);
+
+  // Mount-time view restore. FullCalendar's `initialView` already gives us
+  // timeGridWeek; we override only when storage says otherwise. Dep is `connected`
+  // because FC is only mounted when connected.
+  useEffect(() => {
+    if (!connected) return;
+    if (!calendarRef.current) return;
+    try {
+      const stored = window.localStorage.getItem(VIEW_STORAGE_KEY) as CalView | null;
+      if (stored === "day") {
+        calendarRef.current.getApi().changeView("timeGridDay");
+        setCalView("day");
+      } else if (stored === "custom") {
+        const s = window.localStorage.getItem(CUSTOM_START_KEY);
+        const e = window.localStorage.getItem(CUSTOM_END_KEY);
+        if (s && e) {
+          setCustomStart(s);
+          setCustomEnd(e);
+          calendarRef.current.getApi().changeView("timeGrid", { start: s, end: nextDayOf(e) });
+          setCalView("custom");
+        }
+      }
+      // stored === "week" or null → keep the default initialView.
+    } catch {
+      /* swallow — fall back to default view */
+    }
+    // We only want this to fire once when connected flips true. `calendarRef`
+    // is stable; the custom* state defaults to today/+6 which suffices when no
+    // stored custom range exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   // Refetch events when the visible range changes.
   useEffect(() => {
@@ -395,32 +491,85 @@ export function CalendarView({
       </header>
 
       {/* Custom Google-style toolbar — replaces FullCalendar's default chrome. */}
-      <div className="mb-3 flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={goToday}>
-          {t("calendar.toolbar.today")}
-        </Button>
-        <div className="inline-flex">
-          <button
-            type="button"
-            onClick={goPrev}
-            aria-label={t("calendar.toolbar.prev")}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            aria-label={t("calendar.toolbar.next")}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <ChevronRight className="size-4" />
-          </button>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={goToday}>
+            {t("calendar.toolbar.today")}
+          </Button>
+          <div className="inline-flex">
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label={t("calendar.toolbar.prev")}
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label={t("calendar.toolbar.next")}
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          <span className="ml-1 text-sm font-medium text-foreground" aria-live="polite">
+            {toolbarLabel}
+          </span>
         </div>
-        <span className="ml-1 text-sm font-medium text-foreground" aria-live="polite">
-          {toolbarLabel}
-        </span>
+
+        <div
+          role="group"
+          aria-label={t("calendar.view.week")}
+          className="inline-flex items-center rounded-md border border-border bg-card p-0.5"
+        >
+          {(["day", "week", "custom"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => switchView(v)}
+              aria-pressed={calView === v}
+              className={cn(
+                "rounded-sm px-3 py-1 text-sm font-medium transition-colors",
+                calView === v
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(`calendar.view.${v}` as const)}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {calView === "custom" && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <label className="text-muted-foreground" htmlFor="bh-cal-from">
+            {t("calendar.customRange.from")}
+          </label>
+          <input
+            id="bh-cal-from"
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+          />
+          <label className="text-muted-foreground" htmlFor="bh-cal-to">
+            {t("calendar.customRange.to")}
+          </label>
+          <input
+            id="bh-cal-to"
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+          />
+          <Button size="sm" onClick={applyCustomRange}>
+            {t("calendar.customRange.apply")}
+          </Button>
+        </div>
+      )}
 
       <div className="bh-calendar overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
         <FullCalendar
