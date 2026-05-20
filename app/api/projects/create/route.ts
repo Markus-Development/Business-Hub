@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { appendTextBlocks, createProject, type ProjectDraft } from "@/lib/notion";
 import { PRIORITIES, STATUSES, type Priority, type Status } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 
 export const runtime = "nodejs";
 
 type Body = {
   name?: unknown;
   status?: unknown;
-  area?: unknown;
+  department?: unknown;
   priority?: unknown;
   dueDate?: unknown;
   nextAction?: unknown;
@@ -27,11 +27,11 @@ export async function POST(req: Request) {
     return bad("invalid_json");
   }
 
-  const { name, status, area, priority, dueDate, nextAction, body: pageBody } = body;
+  const { name, status, department, priority, dueDate, nextAction, body: pageBody } = body;
 
   if (typeof name !== "string" || name.trim().length === 0) return bad("missing_name");
   if (typeof status !== "string" || !(STATUSES as readonly string[]).includes(status)) return bad("invalid_status");
-  if (typeof area !== "string" || !(AREAS as readonly string[]).includes(area)) return bad("invalid_area");
+  if (typeof department !== "string" || !(DEPARTMENTS as readonly string[]).includes(department)) return bad("invalid_department");
   if (typeof priority !== "string" || !(PRIORITIES as readonly string[]).includes(priority)) return bad("invalid_priority");
   if (dueDate !== null && dueDate !== "" && (typeof dueDate !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(dueDate))) {
     return bad("invalid_date");
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   const draft: ProjectDraft = {
     name: name.trim(),
     status: status as Status,
-    area,
+    department,
     priority: priority as Priority,
     dueDate: dueDate ? (dueDate as string) : null,
     nextAction,

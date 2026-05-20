@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  Archive,
   BookOpen,
   CalendarDays,
   CircleDashed,
@@ -19,23 +20,48 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PageBodyRenderer } from "@/app/projects/_components/PageBodyRenderer";
 import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
+import {
+  DEFAULT_REASON_RESOURCE,
+  REASONS_ARCHIVED,
+  type ReasonArchived,
+} from "@/constants/archive";
 import type { NotionBlock, NotionResource } from "@/lib/notion";
 
 type Props = {
   resource: NotionResource | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // Fire-and-forget: the parent owns the optimistic removal, the POST, the
+  // toasts, and the revert-on-failure (see ResourcesView.archiveResource).
+  onArchive: (resource: NotionResource, reason: ReasonArchived) => void;
 };
 
 type BlockEntry = { loading: boolean; blocks: NotionBlock[] | null };
 
-export function ResourceDrawer({ resource, open, onOpenChange }: Props) {
+export function ResourceDrawer({ resource, open, onOpenChange, onArchive }: Props) {
   const t = useT();
   const [locale] = useLocale();
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [reason, setReason] = useState<ReasonArchived>(DEFAULT_REASON_RESOURCE);
 
   const dateLong = useMemo(
     () => new Intl.DateTimeFormat(locale === "de" ? "de-DE" : "en-US", { dateStyle: "medium" }),
@@ -128,12 +154,70 @@ export function ResourceDrawer({ resource, open, onOpenChange }: Props) {
           ) : (
             <span />
           )}
-          <SheetClose asChild>
-            <Button variant="outline" size="sm">
-              {t("projects.drawer.close")}
-            </Button>
-          </SheetClose>
+          <div className="flex items-center gap-2">
+            {resource ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setReason(DEFAULT_REASON_RESOURCE);
+                  setArchiveOpen(true);
+                }}
+              >
+                <Archive className="size-3.5" aria-hidden />
+                {t("resources.archive.button")}
+              </Button>
+            ) : null}
+            <SheetClose asChild>
+              <Button variant="outline" size="sm">
+                {t("projects.drawer.close")}
+              </Button>
+            </SheetClose>
+          </div>
         </SheetFooter>
+
+        {resource ? (
+          <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t("resources.archive.title")}</DialogTitle>
+                <DialogDescription>{t("resources.archive.body")}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("resources.archive.reasonLabel")}
+                </label>
+                <Select value={reason} onValueChange={(v) => setReason(v as ReasonArchived)}>
+                  <SelectTrigger className="h-9 w-full text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REASONS_ARCHIVED.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setArchiveOpen(false)}>
+                  {t("resources.archive.cancel")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setArchiveOpen(false);
+                    onArchive(resource, reason);
+                  }}
+                >
+                  <Archive className="size-3.5" aria-hidden />
+                  {t("resources.archive.confirm")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

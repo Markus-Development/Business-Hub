@@ -33,7 +33,7 @@ import { PageBodyRenderer } from "./PageBodyRenderer";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 import { ROUTES } from "@/constants/routes";
 import type { NotionBlock, Project } from "@/lib/notion";
 import type { UpdateField } from "./api";
@@ -84,22 +84,25 @@ export function ProjectDrawer({ project, open, onOpenChange, onUpdate }: Props) 
                         {t(`status.${s}` as const)}
                       </SelectItem>
                     ))}
+                    {/* Archived is not a normal status — selecting it moves the
+                        project to the Archive DB (see ProjectsClient.handleUpdate). */}
+                    <SelectItem value="Archived">{t("status.Archived")}</SelectItem>
                   </SelectContent>
                 </Select>
               </MetaRow>
 
-              <MetaRow icon={<LayoutGrid className="size-3.5" />} label={t("projects.col.area")}>
+              <MetaRow icon={<LayoutGrid className="size-3.5" />} label={t("projects.col.department")}>
                 <Select
-                  value={project.area ?? undefined}
-                  onValueChange={(v) => onUpdate(project.id, "Area", v)}
+                  value={project.department ?? undefined}
+                  onValueChange={(v) => onUpdate(project.id, "Department", v)}
                 >
                   <SelectTrigger className="h-8 w-full text-sm">
-                    <SelectValue placeholder={t("projects.cell.noArea")} />
+                    <SelectValue placeholder={t("projects.cell.noDepartment")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {AREAS.map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {a}
+                    {DEPARTMENTS.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -185,7 +188,7 @@ export function ProjectDrawer({ project, open, onOpenChange, onUpdate }: Props) 
                   project={{
                     id: project.id,
                     name: project.name,
-                    area: project.area,
+                    area: project.department,
                     priority: project.priority,
                     dueDate: project.dueDate,
                     nextAction: project.nextAction,

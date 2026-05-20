@@ -20,12 +20,13 @@ export async function GET() {
     ]);
 
     // Derive active-project counts by grouping in JS — one Notion query, not
-    // one-per-area. Empty/null area values are silently skipped.
+    // one-per-area. A project's Department is matched against the Area DB name
+    // (shared eight-label taxonomy). Empty/null Department values are skipped.
     const projectCounts: Record<string, number> = {};
     for (const a of areas) projectCounts[a.name] = 0;
     for (const p of projects) {
-      if (!p.area) continue;
-      projectCounts[p.area] = (projectCounts[p.area] ?? 0) + 1;
+      if (!p.department) continue;
+      projectCounts[p.department] = (projectCounts[p.department] ?? 0) + 1;
     }
 
     return NextResponse.json({ areas, projectCounts } satisfies AreasListResponse);

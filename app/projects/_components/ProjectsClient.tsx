@@ -21,7 +21,7 @@ import {
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 import { ROUTES } from "@/constants/routes";
 import type { Project, SelectOption } from "@/lib/notion";
 
@@ -34,7 +34,7 @@ const FIELD_KEY: Record<UpdateField, keyof Project> = {
   Status: "status",
   Priority: "priority",
   Name: "name",
-  Area: "area",
+  Department: "department",
   "Due Date": "dueDate",
   "Next Action": "nextAction",
 };
@@ -46,23 +46,24 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const [items, setItems] = useState<Project[]>(projects);
 
   const [statusFilter, setStatusFilter] = useState<string>("");
-  // Pre-seed from `?area=<name>` on mount when the value matches a known Area
-  // (e.g. links from Tab 5's project-count badge). Lazy initialiser intentionally
-  // ignores later URL changes — once mounted, the user's filter selection wins.
-  const [areaFilter, setAreaFilter] = useState<string>(() => {
-    const fromUrl = searchParams.get("area");
-    return fromUrl && (AREAS as readonly string[]).includes(fromUrl) ? fromUrl : "";
+  // Pre-seed from `?department=<name>` on mount when the value matches a known
+  // Department (e.g. links from Tab 5's project-count badge). Lazy initialiser
+  // intentionally ignores later URL changes — once mounted, the user's filter
+  // selection wins.
+  const [departmentFilter, setDepartmentFilter] = useState<string>(() => {
+    const fromUrl = searchParams.get("department");
+    return fromUrl && (DEPARTMENTS as readonly string[]).includes(fromUrl) ? fromUrl : "";
   });
   const [priorityFilter, setPriorityFilter] = useState<string>("");
-  // Group-by-area is a table-only display mode. Preserved across view switches —
-  // re-appears with active state when the user returns to the table view.
-  const [groupByArea, setGroupByArea] = useState<boolean>(false);
+  // Group-by-department is a table-only display mode. Preserved across view
+  // switches — re-appears with active state when the user returns to the table.
+  const [groupByDepartment, setGroupByDepartment] = useState<boolean>(false);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   const [statusOptions, setStatusOptions] = useState<SelectOption[]>([]);
-  const [areaOptions, setAreaOptions] = useState<SelectOption[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<SelectOption[]>([]);
 
   useEffect(() => {
     try {
@@ -73,17 +74,17 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     } catch {}
   }, []);
 
-  // Notion Status + Area option lists, including each option's `color`. Used by the
-  // table cells to paint a coloured left-border on the badge that matches the option
-  // colour set in Notion. Failure is non-fatal — cells fall back to the muted default.
+  // Notion Status + Department option lists, including each option's `color`. Used by
+  // the table cells to paint a coloured left-border on the badge that matches the
+  // option colour set in Notion. Failure is non-fatal — cells fall back to the muted default.
   useEffect(() => {
     let cancelled = false;
     fetch(ROUTES.api.projects.options, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`http_${r.status}`))))
-      .then((body: { status?: SelectOption[]; area?: SelectOption[] }) => {
+      .then((body: { status?: SelectOption[]; department?: SelectOption[] }) => {
         if (cancelled) return;
         setStatusOptions(body.status ?? []);
-        setAreaOptions(body.area ?? []);
+        setDepartmentOptions(body.department ?? []);
       })
       .catch((err) => {
         // eslint-disable-next-line no-console
@@ -107,12 +108,26 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
 
   const handleUpdate = async (pageId: string, field: UpdateField, value: string | null) => {
     const prev = items;
-    const key = FIELD_KEY[field];
-    setItems(prev.map((p) => (p.id === pageId ? { ...p, [key]: value } : p)));
+    // Status -> Archived is not a normal edit: it moves the project to the
+    // Archive DB and trashes the source page. Optimistically drop the row;
+    // reconcile (restore) only if the request fails.
+    const archiving = field === "Status" && value === "Archived";
+    if (archiving) {
+      setItems(prev.filter((p) => p.id !== pageId));
+    } else {
+      const key = FIELD_KEY[field];
+      setItems(prev.map((p) => (p.id === pageId ? { ...p, [key]: value } : p)));
+    }
     const result = await postProjectUpdate(pageId, field, value);
     if (!result.ok) {
       setItems(prev);
       toast.error(t("projects.errorUpdate"));
+      return;
+    }
+    if (result.archived) {
+      // Row already removed optimistically. Close the drawer if it was open.
+      if (selectedProjectId === pageId) setSelectedProjectId(null);
+      toast.success(t("projects.archivedToast"));
       return;
     }
     toast.success(t("projects.updateSuccess"));
@@ -125,11 +140,11 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const filteredItems = useMemo(() => {
     return items.filter((p) => {
       if (statusFilter && p.status !== statusFilter) return false;
-      if (areaFilter && p.area !== areaFilter) return false;
+      if (departmentFilter && p.department !== departmentFilter) return false;
       if (priorityFilter && p.priority !== priorityFilter) return false;
       return true;
     });
-  }, [items, statusFilter, areaFilter, priorityFilter]);
+  }, [items, statusFilter, departmentFilter, priorityFilter]);
 
   // Drawer follows live items so optimistic edits are reflected.
   const selectedProject = useMemo(
@@ -189,17 +204,17 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
             </SelectContent>
           </Select>
           <Select
-            value={areaFilter || ALL}
-            onValueChange={(v) => setAreaFilter(v === ALL ? "" : v)}
+            value={departmentFilter || ALL}
+            onValueChange={(v) => setDepartmentFilter(v === ALL ? "" : v)}
           >
             <SelectTrigger className="h-9 w-[180px] text-sm">
-              <SelectValue placeholder={t("projects.filter.allAreas")} />
+              <SelectValue placeholder={t("projects.filter.allDepartments")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>{t("projects.filter.allAreas")}</SelectItem>
-              {AREAS.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
+              <SelectItem value={ALL}>{t("projects.filter.allDepartments")}</SelectItem>
+              {DEPARTMENTS.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -223,16 +238,16 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
           {view === "table" && (
             <button
               type="button"
-              onClick={() => setGroupByArea((v) => !v)}
+              onClick={() => setGroupByDepartment((v) => !v)}
               className={cn(
                 "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
-                groupByArea
+                groupByDepartment
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-card text-muted-foreground hover:text-foreground",
               )}
             >
               <Layers size={14} aria-hidden />
-              {t("projects.groupByArea")}
+              {t("projects.groupByDepartment")}
             </button>
           )}
         </div>
@@ -261,8 +276,8 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
           onUpdate={handleUpdate}
           onOpenProject={openProject}
           statusOptions={statusOptions}
-          areaOptions={areaOptions}
-          groupByArea={groupByArea}
+          departmentOptions={departmentOptions}
+          groupByDepartment={groupByDepartment}
         />
       )}
 

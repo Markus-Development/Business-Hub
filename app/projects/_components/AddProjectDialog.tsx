@@ -23,7 +23,7 @@ import { useT } from "@/lib/i18n";
 import { ActionSuggester } from "./ActionSuggester";
 import { postProjectCreate } from "./api";
 import { PRIORITIES, STATUSES, type Priority, type Status } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 import type { Project } from "@/lib/notion";
 
 type Props = {
@@ -37,7 +37,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState<Status>("Active");
-  const [area, setArea] = useState<string>("");
+  const [department, setDepartment] = useState<string>("");
   const [priority, setPriority] = useState<Priority>("Medium");
   const [dueDate, setDueDate] = useState<string>("");
   const [nextAction, setNextAction] = useState("");
@@ -46,12 +46,12 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
   const [touched, setTouched] = useState(false);
 
   const nameMissing = !name.trim();
-  const areaMissing = !area;
+  const departmentMissing = !department;
 
   const reset = () => {
     setName("");
     setStatus("Active");
-    setArea("");
+    setDepartment("");
     setPriority("Medium");
     setDueDate("");
     setNextAction("");
@@ -62,12 +62,12 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
 
   const submit = async () => {
     setTouched(true);
-    if (nameMissing || areaMissing) return;
+    if (nameMissing || departmentMissing) return;
     setSubmitting(true);
     const result = await postProjectCreate({
       name: name.trim(),
       status,
-      area,
+      department,
       priority,
       dueDate: dueDate || null,
       nextAction,
@@ -140,15 +140,18 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
             </Field>
           </div>
 
-          <Field label={t("projects.col.area")} error={touched && areaMissing ? t("projects.add.areaRequired") : null}>
-            <Select value={area} onValueChange={setArea}>
+          <Field
+            label={t("projects.col.department")}
+            error={touched && departmentMissing ? t("projects.add.departmentRequired") : null}
+          >
+            <Select value={department} onValueChange={setDepartment}>
               <SelectTrigger className="h-9 w-full text-sm">
-                <SelectValue placeholder={t("projects.add.selectArea")} />
+                <SelectValue placeholder={t("projects.add.selectDepartment")} />
               </SelectTrigger>
               <SelectContent>
-                {AREAS.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
+                {DEPARTMENTS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -184,7 +187,7 @@ export function AddProjectDialog({ open, onOpenChange, onCreated }: Props) {
           <ActionSuggester
             project={{
               name: name.trim() || "(draft)",
-              area: area || null,
+              area: department || null,
               priority,
               dueDate: dueDate || null,
               nextAction: nextAction || null,

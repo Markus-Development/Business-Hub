@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
-import { updateProjectField, type UpdateField } from "@/lib/notion";
+import { archiveProjectPage, updateProjectField, type UpdateField } from "@/lib/notion";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 
 export const runtime = "nodejs";
 
-const FIELDS: UpdateField[] = ["Status", "Priority", "Name", "Area", "Due Date", "Next Action"];
+const FIELDS: UpdateField[] = [
+  "Status",
+  "Priority",
+  "Name",
+  "Department",
+  "Due Date",
+  "Next Action",
+];
 
 type Body = { pageId?: unknown; field?: unknown; value?: unknown };
 
@@ -25,10 +32,27 @@ export async function POST(req: Request) {
   if (typeof pageId !== "string" || pageId.length === 0) return bad("missing_pageId");
   if (typeof field !== "string" || !(FIELDS as string[]).includes(field)) return bad("invalid_field");
 
+  // Intercept: Status -> Archived is not a normal property write — it moves the
+  // project to the Archive DB and trashes the source page. This must run BEFORE
+  // the Status enum validation below ("Archived" is intentionally NOT in
+  // STATUSES). Every other write falls through to the unchanged logic.
+  if (field === "Status" && value === "Archived") {
+    try {
+      const { archiveId } = await archiveProjectPage(pageId);
+      return NextResponse.json({ ok: true, archived: true, archiveId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "archive_failed";
+      // eslint-disable-next-line no-console
+      console.error("project_archive_failed", { pageId, error: message });
+      return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    }
+  }
+
   // Per-field value validation.
-  if (field === "Status" || field === "Priority" || field === "Area") {
+  if (field === "Status" || field === "Priority" || field === "Department") {
     if (typeof value !== "string") return bad("invalid_value");
-    const allowed = field === "Status" ? STATUSES : field === "Priority" ? PRIORITIES : AREAS;
+    const allowed =
+      field === "Status" ? STATUSES : field === "Priority" ? PRIORITIES : DEPARTMENTS;
     if (!(allowed as readonly string[]).includes(value)) return bad("value_not_in_enum");
   } else if (field === "Name" || field === "Next Action") {
     if (typeof value !== "string") return bad("invalid_value");

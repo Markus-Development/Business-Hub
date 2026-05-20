@@ -57,7 +57,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ zohoId: string
         name,
         client: clientName,
         status: "Active",
-        area: "Fulfillment",
+        department: "Fulfillment",
         priority: "Medium",
         dueDate,
       });

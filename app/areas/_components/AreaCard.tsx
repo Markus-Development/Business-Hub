@@ -129,7 +129,7 @@ export function AreaCard({
       <footer className="mt-1 flex flex-wrap items-center gap-2">
         {showActiveBadge ? (
           <Link
-            href={`${ROUTES.pages.projects}?area=${encodeURIComponent(area.name)}`}
+            href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
             className={cn(
               "inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
               activeProjectCount === 0 ? "text-muted-foreground" : "text-foreground",
@@ -140,7 +140,7 @@ export function AreaCard({
         ) : null}
         {overdueCount > 0 ? (
           <Link
-            href={`${ROUTES.pages.projects}?area=${encodeURIComponent(area.name)}`}
+            href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
             className="inline-flex items-center rounded-full border border-red-200/50 bg-red-500/15 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-500/25 dark:text-red-300"
           >
             {t("areas.overdueProjects").replace("{count}", String(overdueCount))}

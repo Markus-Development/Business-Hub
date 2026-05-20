@@ -3,4 +3,5 @@ export const TABLES = {
   BRIEFINGS: "briefings",
   TIME_BLOCK_SUGGESTIONS: "time_block_suggestions",
   USER_SETTINGS: "user_settings",
+  CLIENT_TEMPLATE_OVERRIDES: "client_template_overrides",
 } as const;

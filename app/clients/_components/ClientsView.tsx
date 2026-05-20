@@ -26,6 +26,7 @@ export function ClientsView() {
   const [clients, setClients] = useState<MergedClient[] | null>(null);
   const [selectedZohoId, setSelectedZohoId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("overdue");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, DetailCacheEntry>>({});
 
   // tRef keeps the latest translator without retriggering mount-only effects on locale toggle.
@@ -120,9 +121,24 @@ export function ClientsView() {
     [],
   );
 
+  // Unique non-null Status values across the loaded clients, sorted A–Z.
+  // Derived from data (not a hardcoded constant) so newly-added Notion options
+  // surface here without a code change.
+  const statusOptions = useMemo(() => {
+    if (!clients) return [] as string[];
+    const set = new Set<string>();
+    for (const c of clients) {
+      if (c.clientStatus) set.add(c.clientStatus);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [clients]);
+
   const sortedClients = useMemo(() => {
     if (!clients) return null;
-    const copy = [...clients];
+    const filtered = statusFilter
+      ? clients.filter((c) => c.clientStatus === statusFilter)
+      : clients;
+    const copy = [...filtered];
     if (sort === "name") {
       copy.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === "outstanding") {
@@ -140,7 +156,7 @@ export function ClientsView() {
       });
     }
     return copy;
-  }, [clients, sort, details]);
+  }, [clients, sort, statusFilter, details]);
 
   const summary = useMemo(() => {
     if (!clients) return { total: 0, outstanding: 0, overdue: 0 };
@@ -196,6 +212,9 @@ export function ClientsView() {
           onSelect={setSelectedZohoId}
           sort={sort}
           onSortChange={setSort}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          statusOptions={statusOptions}
           details={details}
         />
         <ClientDetail

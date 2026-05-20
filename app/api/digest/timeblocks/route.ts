@@ -53,13 +53,15 @@ Return STRICT JSON only — no markdown, no prose, no code fences. Schema:
 { "suggestions": [ { "project_name": string, "start_iso": string, "end_iso": string, "rationale": string } ] }
 
 Rules:
-- 2 to 4 suggestions, ordered by start_iso ascending.
+- 1 to 4 suggestions, ordered by start_iso ascending. Prefer 2-4 when the free intervals comfortably allow it; return 1 only when the remaining intervals are too few or too short for more. Never fabricate to hit a count.
 - Each block 25-90 minutes long.
 - start_iso and end_iso must be ISO-8601 timestamps with timezone offset, strictly inside one of the provided free intervals.
 - Pick projects from the provided list. Use the project's exact Name.
 - rationale: under 20 words; explain why this project deserves this slot today.
 - Prefer high-priority and near-deadline projects. Do not stack two blocks for the same project unless inputs strongly justify it.
-- Do not invent projects or slots.`;
+- Do not invent projects or slots.
+
+Your entire response must be valid JSON. Do not write any text before or after the JSON object. Do not explain, narrate, or describe the intervals — just return the JSON.`;
 
 type TrimmedProject = {
   dueDate: string | null;
@@ -110,6 +112,15 @@ function parseSuggestions(raw: string): ModelSuggestion[] {
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   }
+  // Second safety net: if the model still wrapped JSON in prose (e.g. ignored
+  // the prefill + system prompt), extract the first `{...}` block. The greedy
+  // `[\s\S]*` matches across newlines and grabs to the LAST `}`, which is what
+  // we want for a single object literal.
+  if (!cleaned.startsWith("{")) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("no_json_object_found");
+    cleaned = match[0];
+  }
   const parsed: unknown = JSON.parse(cleaned);
   if (
     !parsed ||
@@ -143,8 +154,18 @@ function parseSuggestions(raw: string): ModelSuggestion[] {
       rationale: s.rationale,
     });
   }
-  if (out.length < 2 || out.length > 4) throw new Error("out_of_range_suggestion_count");
-  return out.sort((a, b) => Date.parse(a.start_iso) - Date.parse(b.start_iso));
+  // Throw only on zero. The model may legitimately return just one suggestion
+  // when the remaining free intervals are too tight for more — that's still
+  // useful, and a 502 toast would be worse UX. Truncate to 4 in time order if
+  // the model overshoots (the prompt allows 1-4 but defends against drift).
+  if (out.length === 0) throw new Error("no_suggestions_returned");
+  const sorted = out.sort((a, b) => Date.parse(a.start_iso) - Date.parse(b.start_iso));
+  if (sorted.length > 4) {
+    // eslint-disable-next-line no-console
+    console.warn(`[timeblocks] model returned ${sorted.length} suggestions; truncating to 4`);
+    return sorted.slice(0, 4);
+  }
+  return sorted;
 }
 
 async function readLatestBriefingSummary(date: string): Promise<string | null> {

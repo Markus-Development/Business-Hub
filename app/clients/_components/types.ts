@@ -10,6 +10,9 @@ export type MergedClient = {
   industry: string | null;
   employees: number | null;
   monthlyRevenue: number | null;
+  monthlyFee: number | null;
+  person: string | null;
+  clientStatus: string | null;
   callNotesLink: string | null;
   clientDatabaseLink: string | null;
   dashboardLink: string | null;
@@ -35,7 +38,7 @@ export type NotionProject = {
   url: string;
   name: string;
   status: "Active" | "On Hold" | "Done" | null;
-  area: string | null;
+  department: string | null;
   priority: "High" | "Medium" | "Low" | null;
   outcome: string;
   nextAction: string;
@@ -55,6 +58,9 @@ export type ClientDetail = {
     industry: string | null;
     employees: number | null;
     monthlyRevenue: number | null;
+    monthlyFee: number | null;
+    person: string | null;
+    clientStatus: string | null;
     callNotesLink: string | null;
     clientDatabaseLink: string | null;
     dashboardLink: string | null;
@@ -63,6 +69,7 @@ export type ClientDetail = {
   invoices: ZohoInvoice[];
   lifetimeTurnover: number;
   monthlyTasks: NotionProject[];
+  templateOverrides: Record<string, string>;
 };
 
 export type SortKey = "overdue" | "outstanding" | "name";

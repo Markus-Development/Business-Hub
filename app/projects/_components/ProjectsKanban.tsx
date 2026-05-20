@@ -206,7 +206,7 @@ function KanbanCard({
             )}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            {project.area && <span>{project.area}</span>}
+            {project.department && <span>{project.department}</span>}
             {dueLabel && <span className="font-mono">{dueLabel}</span>}
           </div>
           {project.nextAction && (

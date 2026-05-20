@@ -1,4 +1,4 @@
-export const AREAS = [
+export const DEPARTMENTS = [
   "Fulfillment",
   "Accounting",
   "Marketing",
@@ -9,4 +9,4 @@ export const AREAS = [
   "Personal",
 ] as const;
 
-export type Area = (typeof AREAS)[number];
+export type Department = (typeof DEPARTMENTS)[number];

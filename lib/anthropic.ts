@@ -16,6 +16,19 @@ export function briefing(prompt: string, system?: string) {
   });
 }
 
+// Sibling of briefing() for the roadmap-update task. Sonnet, but a much larger
+// max_tokens because a full roadmap.md rewrite is returned inline. Same
+// response shape as briefing(), so extractText() works on it. briefing()'s own
+// signature is intentionally left untouched (the digest path depends on it).
+export function roadmapDraft(systemPrompt: string, userContent: string) {
+  return anthropic.messages.create({
+    model: MODELS.BRIEFING,
+    max_tokens: 16384,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userContent }],
+  });
+}
+
 // Cheap + fast Haiku call for short structured / classification outputs.
 // Same response shape as briefing(), so extractText() works on either.
 export function classify(prompt: string, system?: string) {

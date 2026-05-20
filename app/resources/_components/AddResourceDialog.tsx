@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -20,9 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
-import { AREAS } from "@/constants/areas";
 import { ROUTES } from "@/constants/routes";
-import type { NotionResource } from "@/lib/notion";
+import type { NotionResource, SelectOption } from "@/lib/notion";
 
 type Props = {
   open: boolean;
@@ -44,6 +43,40 @@ export function AddResourceDialog({ open, onOpenChange, onCreated }: Props) {
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
+
+  // Live Resources.Area options — the Resources DB has its own 18-value Area
+  // taxonomy, distinct from the Projects departments. Fetched once on mount.
+  const [areaOptions, setAreaOptions] = useState<SelectOption[]>([]);
+  const [areaLoading, setAreaLoading] = useState(true);
+  const [areaFetchFailed, setAreaFetchFailed] = useState(false);
+
+  // tRef so the one-shot fetch effect can read the current locale's `t`
+  // without depending on `t` (locale toggles must not refetch).
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(ROUTES.api.resources.options, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`http_${r.status}`))))
+      .then((bodyJson: { area?: SelectOption[] }) => {
+        if (cancelled) return;
+        setAreaOptions(Array.isArray(bodyJson.area) ? bodyJson.area : []);
+        setAreaLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // Fetch failed — fall back to a free-text Area input + a one-time toast.
+        setAreaFetchFailed(true);
+        setAreaLoading(false);
+        toast.error(tRef.current("resources.error"));
+        // eslint-disable-next-line no-console
+        console.error("resource_options_load_failed", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const nameMissing = !name.trim();
 
@@ -118,23 +151,33 @@ export function AddResourceDialog({ open, onOpenChange, onCreated }: Props) {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={t("projects.col.area")}>
-              <Select
-                value={area || UNSET}
-                onValueChange={(v) => setArea(v === UNSET ? "" : v)}
-              >
-                <SelectTrigger className="h-9 w-full text-sm">
-                  <SelectValue placeholder={t("resources.add.selectArea")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNSET}>{t("resources.add.selectArea")}</SelectItem>
-                  {AREAS.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label={t("resources.field.area")}>
+              {areaFetchFailed ? (
+                // Fetch failed — free-text entry, no select restriction.
+                <Input
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  placeholder={t("resources.add.selectArea")}
+                />
+              ) : (
+                <Select
+                  value={area || UNSET}
+                  onValueChange={(v) => setArea(v === UNSET ? "" : v)}
+                  disabled={areaLoading}
+                >
+                  <SelectTrigger className="h-9 w-full text-sm">
+                    <SelectValue placeholder={t("resources.add.selectArea")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNSET}>{t("resources.add.selectArea")}</SelectItem>
+                    {areaOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.name}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </Field>
 
             <Field label={t("resources.add.typeLabel")}>

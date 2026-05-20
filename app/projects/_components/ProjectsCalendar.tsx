@@ -111,9 +111,9 @@ export function ProjectsCalendar({ items, onOpenProject, onUpdate }: Props) {
                 >
                   <span className="min-w-0 flex-1 truncate">{p.name || "—"}</span>
                 </button>
-                {(p.area || p.priority) && (
+                {(p.department || p.priority) && (
                   <div className="ml-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-                    {p.area && <span>{p.area}</span>}
+                    {p.department && <span>{p.department}</span>}
                     {p.priority && <span>{t(`priority.${p.priority}` as const)}</span>}
                   </div>
                 )}

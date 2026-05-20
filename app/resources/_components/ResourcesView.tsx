@@ -10,6 +10,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink, Link as LinkIcon, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/select";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/constants/routes";
+import type { ReasonArchived } from "@/constants/archive";
 import type { NotionResource } from "@/lib/notion";
 import { AddResourceDialog } from "./AddResourceDialog";
 import { ResourceDrawer } from "./ResourceDrawer";
@@ -208,6 +211,30 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
     [resources, selectedResourceId],
   );
 
+  // Archive a resource: optimistically drop the row and close the drawer, then
+  // POST. On failure restore the list + toast — the drawer stays closed and the
+  // row reappears in the table, so the user can reopen and retry.
+  const archiveResource = async (resource: NotionResource, reason: ReasonArchived) => {
+    const snapshot = resources;
+    setResources(snapshot.filter((r) => r.id !== resource.id));
+    setSelectedResourceId(null);
+    try {
+      const res = await fetch(ROUTES.api.resources.archive(resource.id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok !== true) throw new Error(json.error ?? "archive_failed");
+      toast.success(t("resources.archive.success"));
+    } catch (err) {
+      setResources(snapshot);
+      toast.error(t("resources.archive.error"));
+      // eslint-disable-next-line no-console
+      console.error("resource_archive_failed", err);
+    }
+  };
+
   if (notConfigured) {
     return (
       <div className="mx-auto max-w-screen-xl px-6 py-10">
@@ -359,6 +386,7 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
         onOpenChange={(o) => {
           if (!o) setSelectedResourceId(null);
         }}
+        onArchive={archiveResource}
       />
 
       <AddResourceDialog

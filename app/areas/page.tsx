@@ -20,12 +20,14 @@ export default async function AreasPage() {
     overdueCounts[a.name] = 0;
   }
   // listActiveProjects() already filters to Active, so no status check here.
+  // A project's Department value is matched against the Area DB name — the two
+  // taxonomies share the same eight labels (Fulfillment, Marketing, …).
   const now = new Date();
   for (const p of projects) {
-    if (!p.area) continue;
-    projectCounts[p.area] = (projectCounts[p.area] ?? 0) + 1;
+    if (!p.department) continue;
+    projectCounts[p.department] = (projectCounts[p.department] ?? 0) + 1;
     if (p.dueDate && new Date(p.dueDate) < now) {
-      overdueCounts[p.area] = (overdueCounts[p.area] ?? 0) + 1;
+      overdueCounts[p.department] = (overdueCounts[p.department] ?? 0) + 1;
     }
   }
 

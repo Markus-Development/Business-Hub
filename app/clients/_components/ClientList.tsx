@@ -24,6 +24,9 @@ export function ClientList({
   onSelect,
   sort,
   onSortChange,
+  statusFilter,
+  onStatusFilterChange,
+  statusOptions,
   details,
 }: {
   clients: MergedClient[] | null;
@@ -31,6 +34,9 @@ export function ClientList({
   onSelect: (zohoId: string) => void;
   sort: SortKey;
   onSortChange: (s: SortKey) => void;
+  statusFilter: string | null;
+  onStatusFilterChange: (s: string | null) => void;
+  statusOptions: string[];
   details: Record<string, DetailCacheEntry>;
 }) {
   const t = useT();
@@ -38,19 +44,38 @@ export function ClientList({
 
   return (
     <aside className="flex h-[calc(100vh-13rem)] flex-col rounded-xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border px-4 py-3">
-        <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t("clients.sort.label")}
-        </label>
-        <select
-          value={sort}
-          onChange={(e) => onSortChange(e.target.value as SortKey)}
-          className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="overdue">{t("clients.sort.overdue")}</option>
-          <option value="outstanding">{t("clients.sort.outstanding")}</option>
-          <option value="name">{t("clients.sort.name")}</option>
-        </select>
+      <div className="space-y-3 border-b border-border px-4 py-3">
+        <div>
+          <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t("clients.sort.label")}
+          </label>
+          <select
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value as SortKey)}
+            className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="overdue">{t("clients.sort.overdue")}</option>
+            <option value="outstanding">{t("clients.sort.outstanding")}</option>
+            <option value="name">{t("clients.sort.name")}</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t("clients.filterStatus")}
+          </label>
+          <select
+            value={statusFilter ?? ""}
+            onChange={(e) => onStatusFilterChange(e.target.value === "" ? null : e.target.value)}
+            className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="">{t("clients.filterStatus.all")}</option>
+            {statusOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <ul className="min-h-0 flex-1 overflow-y-auto">

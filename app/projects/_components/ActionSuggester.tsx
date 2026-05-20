@@ -12,6 +12,9 @@ export type ActionSuggesterProject = {
   // case where the project hasn't been created yet.
   id?: string;
   name: string;
+  // Carries the project's Department value. The field keeps the name `area`
+  // because it is the wire key shared with /api/projects/suggest, which is
+  // outside the Projects.Area → Department rename scope (Phase 1).
   area: string | null;
   priority: string | null;
   dueDate: string | null;

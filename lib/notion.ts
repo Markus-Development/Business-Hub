@@ -1,6 +1,11 @@
 import "server-only";
 import { Client } from "@notionhq/client";
 import type { Priority, Status } from "@/constants/priorities";
+import {
+  DEFAULT_REASON_PROJECT,
+  DEFAULT_REASON_RESOURCE,
+  type ReasonArchived,
+} from "@/constants/archive";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -15,7 +20,7 @@ export type Project = {
   url: string;
   name: string;
   status: Status | null;
-  area: string | null;
+  department: string | null;
   priority: Priority | null;
   outcome: string;
   nextAction: string;
@@ -28,13 +33,19 @@ export type Project = {
 export type ProjectDraft = {
   name: string;
   status: Status;
-  area: string;
+  department: string;
   priority: Priority;
   dueDate: string | null;
   nextAction: string;
 };
 
-export type UpdateField = "Status" | "Priority" | "Name" | "Area" | "Due Date" | "Next Action";
+export type UpdateField =
+  | "Status"
+  | "Priority"
+  | "Name"
+  | "Department"
+  | "Due Date"
+  | "Next Action";
 
 let projectsDataSourceId: string | null = null;
 
@@ -97,7 +108,7 @@ function toProject(page: any): Project {
     url: page.url,
     name: asTitle(requireProp(p, "Name")),
     status: asStatus(requireProp(p, "Status")) as Status | null,
-    area: asSelect(requireProp(p, "Area")),
+    department: asSelect(requireProp(p, "Department")),
     priority: asSelect(requireProp(p, "Priority")) as Priority | null,
     outcome: asRichText(requireProp(p, "Outcome")),
     nextAction: asRichText(requireProp(p, "Next Action")),
@@ -129,17 +140,45 @@ export async function listActiveProjects(): Promise<Project[]> {
   return projects;
 }
 
+// A Project plus the page's `last_edited_time` metadata. Same property-column
+// projection as `listActiveProjects`; the extra metadata field is consumed by
+// the roadmap-draft route's Sonnet prompt.
+export type ProjectByStatus = Project & { lastEditedTime: string };
+
+// Like `listActiveProjects` but parameterised on the Status value (instead of
+// hardcoding "Active"). Used by /api/roadmap/draft with "Done".
+export async function listProjectsByStatus(status: string): Promise<ProjectByStatus[]> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const projects: ProjectByStatus[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: { property: "Status", status: { equals: status } },
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        projects.push({ ...toProject(page), lastEditedTime: page.last_edited_time ?? "" });
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return projects;
+}
+
 // Build a single property body keyed by Notion property name.
 // Status is `status` type, Name is `title`, Next Action / Client / Outcome are `rich_text`,
-// Area / Priority are `select`, Due Date is `date` (nullable).
+// Department / Priority are `select`, Due Date is `date` (nullable).
 function buildPropertyBody(field: UpdateField, value: string | null): Record<string, any> {
   switch (field) {
     case "Status":
       return { Status: { type: "status", status: value ? { name: value } : null } };
     case "Priority":
       return { Priority: { type: "select", select: value ? { name: value } : null } };
-    case "Area":
-      return { Area: { type: "select", select: value ? { name: value } : null } };
+    case "Department":
+      return { Department: { type: "select", select: value ? { name: value } : null } };
     case "Name":
       return { Name: { type: "title", title: [{ type: "text", text: { content: value ?? "" } }] } };
     case "Next Action":
@@ -270,6 +309,12 @@ export type NotionClient = {
   industry: string | null;
   employees: number | null;
   monthlyRevenue: number | null;
+  monthlyFee: number | null;
+  person: string | null;
+  // Maps to the Notion property literally named "Status" on the Clients DB
+  // (verified via scripts/inspect-clients-db.mjs). Field renamed in TS to
+  // avoid collision with the Project status terminology used elsewhere.
+  clientStatus: string | null;
   callNotesLink: string | null;
   clientDatabaseLink: string | null;
   dashboardLink: string | null;
@@ -308,9 +353,15 @@ function toClient(page: any): NotionClient {
     industry: asSelect(requireProp(p, "Industry")),
     employees: asNumber(requireProp(p, "Employees")),
     monthlyRevenue: asNumber(requireProp(p, "Monthly Revenue")),
-    callNotesLink: asUrl(requireProp(p, "Call Notes Link")),
-    clientDatabaseLink: asUrl(requireProp(p, "Client Database Link")),
-    dashboardLink: asUrl(requireProp(p, "Dashboard Link")),
+    monthlyFee: asNumber(requireProp(p, "Monthly Fee")),
+    person: asRichText(requireProp(p, "Person")) || null,
+    clientStatus: asSelect(requireProp(p, "Status")),
+    // These three are `rich_text` in Notion (verified via the Clients DB
+    // schema), not `url` properties — the link is stored as plain text inside
+    // the rich_text content. asUrl() would always return null here.
+    callNotesLink: asRichText(requireProp(p, "Call Notes Link")) || null,
+    clientDatabaseLink: asRichText(requireProp(p, "Client Database Link")) || null,
+    dashboardLink: asRichText(requireProp(p, "Dashboard Link")) || null,
   };
 }
 
@@ -415,7 +466,7 @@ export async function createClientProject(input: {
   name: string;
   client: string;
   status: Status;
-  area: string;
+  department: string;
   priority: Priority;
   dueDate: string | null;
 }): Promise<Project> {
@@ -423,7 +474,7 @@ export async function createClientProject(input: {
   const properties = {
     ...buildPropertyBody("Name", input.name),
     ...buildPropertyBody("Status", input.status),
-    ...buildPropertyBody("Area", input.area),
+    ...buildPropertyBody("Department", input.department),
     ...buildPropertyBody("Priority", input.priority),
     ...buildPropertyBody("Due Date", input.dueDate),
     Client: {
@@ -563,7 +614,7 @@ export async function createProject(draft: ProjectDraft): Promise<Project> {
   const properties = {
     ...buildPropertyBody("Name", draft.name),
     ...buildPropertyBody("Status", draft.status),
-    ...buildPropertyBody("Area", draft.area),
+    ...buildPropertyBody("Department", draft.department),
     ...buildPropertyBody("Priority", draft.priority),
     ...buildPropertyBody("Due Date", draft.dueDate),
     ...buildPropertyBody("Next Action", draft.nextAction),
@@ -696,6 +747,34 @@ export async function getResourcePageBlocks(pageId: string): Promise<NotionBlock
   return getPageBlocks(pageId);
 }
 
+// Mirror of `fetchSelectOptions` but against the RESOURCES data source (its own
+// cached `resourcesDataSourceId`). The Resources DB has its own Area taxonomy,
+// distinct from the Projects departments — /api/resources/options uses this so
+// the Add-Note dialog offers the correct option set. Returns `null` when the
+// property is absent or is neither `select` nor `status`.
+export async function fetchResourceSelectOptions(
+  propertyName: string,
+): Promise<SelectOption[] | null> {
+  const dataSourceId = await getResourcesDataSourceId();
+  const ds = (await notion.dataSources.retrieve({
+    data_source_id: dataSourceId,
+  })) as unknown as {
+    properties?: Record<
+      string,
+      {
+        type: string;
+        select?: { options?: SelectOption[] };
+        status?: { options?: SelectOption[] };
+      }
+    >;
+  };
+  const prop = ds.properties?.[propertyName];
+  if (!prop) return null;
+  if (prop.type === "select") return prop.select?.options ?? [];
+  if (prop.type === "status") return prop.status?.options ?? [];
+  return null;
+}
+
 export async function createResource(draft: ResourceDraft): Promise<NotionResource> {
   const dataSourceId = await getResourcesDataSourceId();
   const properties: Record<string, any> = {
@@ -743,4 +822,178 @@ export async function appendTextBlocks(pageId: string, text: string): Promise<vo
       children: children.slice(i, i + 100),
     });
   }
+}
+
+// ===== Archive DB ==========================================================
+// Phase 2 archive automation. NOTION_ARCHIVES_DB_ID must be set. Archiving a
+// Project or Resource creates a metadata-only entry in the Archive DB and then
+// moves the source page to Notion's trash. The Archive DB schema is owned by
+// Phase 1 — these helpers only write data, never edit the schema.
+
+let archivesDataSourceId: string | null = null;
+
+async function getArchivesDataSourceId(): Promise<string> {
+  if (archivesDataSourceId) return archivesDataSourceId;
+  const dbId = process.env.NOTION_ARCHIVES_DB_ID;
+  if (!dbId) throw new Error("NOTION_ARCHIVES_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Archive DB has no data_sources — is the integration shared with the database?");
+  archivesDataSourceId = ds.id;
+  return ds.id;
+}
+
+// One archived item, mapped to the Archive DB columns. `Department` applies to
+// archived Projects; `Area` / `Source` / `Summary` / `Tags` apply to archived
+// Resources. `OriginalCreated` is the source page's `created_time`.
+export type ArchivePayload = {
+  Name: string;
+  Origin: string;
+  ReasonArchived: ReasonArchived;
+  Type: string;
+  Department?: string;
+  Area?: string;
+  Source?: string;
+  Summary?: string;
+  Tags?: string[];
+  OriginalCreated: string | null;
+};
+
+export type ArchiveResult = { archiveId: string; sourceArchived: boolean };
+
+// Creates a metadata-only entry in the Archive DB. `Archived Date` is today
+// (UTC). Optional fields are written only when present.
+// TODO: v1 metadata-only — body blocks not copied; source page retains body in
+// Notion trash (30-day retention). Revisit when block-copy ships.
+export async function createArchiveEntry(payload: ArchivePayload): Promise<string> {
+  const dataSourceId = await getArchivesDataSourceId();
+  const archivedDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: payload.Name } }] },
+    Origin: { type: "select", select: { name: payload.Origin } },
+    "Reason Archived": { type: "select", select: { name: payload.ReasonArchived } },
+    "Archived Date": { type: "date", date: { start: archivedDate } },
+    "Original Created": {
+      type: "date",
+      date: payload.OriginalCreated ? { start: payload.OriginalCreated } : null,
+    },
+  };
+  if (payload.Type) {
+    properties.Type = { type: "select", select: { name: payload.Type } };
+  }
+  if (payload.Department) {
+    properties.Department = { type: "select", select: { name: payload.Department } };
+  }
+  if (payload.Area) {
+    properties.Area = { type: "select", select: { name: payload.Area } };
+  }
+  if (payload.Source) {
+    properties.Source = { type: "url", url: payload.Source };
+  }
+  if (payload.Summary) {
+    properties.Summary = {
+      type: "rich_text",
+      rich_text: [{ type: "text", text: { content: payload.Summary } }],
+    };
+  }
+  if (payload.Tags && payload.Tags.length > 0) {
+    properties.Tags = {
+      type: "multi_select",
+      multi_select: payload.Tags.map((name) => ({ name })),
+    };
+  }
+
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  return page.id as string;
+}
+
+// Partial-failure handler: the Archive entry exists but trashing the source
+// page failed. Per spec we do NOT roll back (the new Archive entry is kept) —
+// log both ids and throw so the caller can surface a 502.
+function throwSourceTrashFailed(
+  kind: string,
+  archiveId: string,
+  sourcePageId: string,
+  err: unknown,
+): never {
+  // eslint-disable-next-line no-console
+  console.error(
+    `[archive] ${kind}: Archive entry created but the source page could NOT be ` +
+      `trashed. archiveId=${archiveId} sourcePageId=${sourcePageId}`,
+    err,
+  );
+  throw new Error(
+    `source_trash_failed: Archive entry ${archiveId} was created, but the source ` +
+      `page ${sourcePageId} could not be moved to trash. No rollback performed — ` +
+      `retry trashing the source in Notion, or remove the Archive entry manually.`,
+  );
+}
+
+// Archives a Project: copies metadata into the Archive DB, then trashes the
+// source page. Reads only the source properties it maps (Name, Department).
+export async function archiveProjectPage(
+  pageId: string,
+  opts?: { reason?: ReasonArchived },
+): Promise<ArchiveResult> {
+  const page = (await notion.pages.retrieve({ page_id: pageId })) as any;
+  const props = (page.properties ?? {}) as Record<string, unknown>;
+
+  const payload: ArchivePayload = {
+    Name: asTitle(props.Name),
+    Origin: "Project",
+    ReasonArchived: opts?.reason ?? DEFAULT_REASON_PROJECT,
+    Type: "Project",
+    Department: asSelect(props.Department) ?? undefined,
+    Area: undefined,
+    Source: undefined,
+    Summary: undefined,
+    Tags: undefined,
+    OriginalCreated: page.created_time ?? null,
+  };
+
+  const archiveId = await createArchiveEntry(payload);
+  try {
+    await notion.pages.update({ page_id: pageId, in_trash: true });
+  } catch (err) {
+    throwSourceTrashFailed("archiveProjectPage", archiveId, pageId, err);
+  }
+  return { archiveId, sourceArchived: true };
+}
+
+// Archives a Resource: copies metadata into the Archive DB, then trashes the
+// source page. Reads only the source properties it maps (Name, Type, Area,
+// Source, Summary, Tags).
+export async function archiveResourcePage(
+  pageId: string,
+  opts?: { reason?: ReasonArchived },
+): Promise<ArchiveResult> {
+  const page = (await notion.pages.retrieve({ page_id: pageId })) as any;
+  const props = (page.properties ?? {}) as Record<string, unknown>;
+
+  const payload: ArchivePayload = {
+    Name: asTitle(props.Name),
+    Origin: "Resource",
+    ReasonArchived: opts?.reason ?? DEFAULT_REASON_RESOURCE,
+    Type: asSelect(props.Type) ?? "",
+    Department: undefined,
+    Area: asSelect(props.Area) ?? undefined,
+    Source: asUrl(props.Source) ?? undefined,
+    Summary: asRichText(props.Summary) || undefined,
+    Tags: asMultiSelect(props.Tags),
+    OriginalCreated: page.created_time ?? null,
+  };
+
+  const archiveId = await createArchiveEntry(payload);
+  try {
+    await notion.pages.update({ page_id: pageId, in_trash: true });
+  } catch (err) {
+    throwSourceTrashFailed("archiveResourcePage", archiveId, pageId, err);
+  }
+  return { archiveId, sourceArchived: true };
 }

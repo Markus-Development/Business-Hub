@@ -24,7 +24,7 @@ import { OptionBadgeSelect } from "./cells/OptionBadgeSelect";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, type Priority } from "@/constants/priorities";
-import { AREAS } from "@/constants/areas";
+import { DEPARTMENTS } from "@/constants/departments";
 import type { Project, SelectOption } from "@/lib/notion";
 import type { TranslationKey } from "@/constants/translations";
 import type { UpdateField } from "./api";
@@ -34,12 +34,12 @@ type Props = {
   onUpdate: (pageId: string, field: UpdateField, value: string | null) => void;
   onOpenProject: (pageId: string) => void;
   statusOptions: SelectOption[];
-  areaOptions: SelectOption[];
-  groupByArea?: boolean;
+  departmentOptions: SelectOption[];
+  groupByDepartment?: boolean;
 };
 
 type RowEntry =
-  | { kind: "header"; area: string }
+  | { kind: "header"; department: string }
   | { kind: "row"; row: Row<Project> };
 
 const PRIORITY_ORDER: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
@@ -49,8 +49,8 @@ export function ProjectsTable({
   onUpdate,
   onOpenProject,
   statusOptions,
-  areaOptions,
-  groupByArea = false,
+  departmentOptions,
+  groupByDepartment = false,
 }: Props) {
   const t = useT();
   const [locale] = useLocale();
@@ -82,18 +82,18 @@ export function ProjectsTable({
     [statusOptions, t],
   );
 
-  // Badge options for the Area column. If Notion hasn't returned the option list yet
-  // (mount-time fetch in flight), fall back to the static AREAS enum so the table
-  // still renders interactable selects — colours degrade to the muted default.
-  const areaBadgeOptions = useMemo(() => {
-    const live = areaOptions.map((o) => ({
+  // Badge options for the Department column. If Notion hasn't returned the option list
+  // yet (mount-time fetch in flight), fall back to the static DEPARTMENTS enum so the
+  // table still renders interactable selects — colours degrade to the muted default.
+  const departmentBadgeOptions = useMemo(() => {
+    const live = departmentOptions.map((o) => ({
       value: o.name,
       label: o.name,
       color: o.color,
     }));
     if (live.length > 0) return live;
-    return AREAS.map((name) => ({ value: name, label: name, color: null }));
-  }, [areaOptions]);
+    return DEPARTMENTS.map((name) => ({ value: name, label: name, color: null }));
+  }, [departmentOptions]);
 
   const columns = useMemo<ColumnDef<Project>[]>(
     () => [
@@ -139,14 +139,14 @@ export function ProjectsTable({
         ),
       },
       {
-        accessorKey: "area",
-        header: t("projects.col.area"),
+        accessorKey: "department",
+        header: t("projects.col.department"),
         cell: ({ row }) => (
           <OptionBadgeSelect
-            value={row.original.area}
-            options={areaBadgeOptions}
-            onChange={(v) => onUpdate(row.original.id, "Area", v)}
-            placeholder={t("projects.cell.noArea")}
+            value={row.original.department}
+            options={departmentBadgeOptions}
+            onChange={(v) => onUpdate(row.original.id, "Department", v)}
+            placeholder={t("projects.cell.noDepartment")}
             widthClass="w-[160px]"
           />
         ),
@@ -222,33 +222,33 @@ export function ProjectsTable({
 
   // Flat list of row + group-header entries the tbody renders directly. When
   // grouping is off, just wrap each TanStack row in a `{kind:"row"}` entry.
-  // When on, sort by AREAS index (unknown areas drop to the end) and inject a
-  // header entry whenever the area changes. Grouping is done in JS — TanStack
-  // Table's getGroupedRowModel isn't used here.
+  // When on, sort by DEPARTMENTS index (unknown departments drop to the end) and
+  // inject a header entry whenever the department changes. Grouping is done in JS
+  // — TanStack Table's getGroupedRowModel isn't used here.
   const rowEntries = useMemo<RowEntry[]>(() => {
     const rows = table.getRowModel().rows;
-    if (!groupByArea) return rows.map((row) => ({ kind: "row", row }));
+    if (!groupByDepartment) return rows.map((row) => ({ kind: "row", row }));
 
     const sorted = [...rows].sort((a, b) => {
-      const ai = (AREAS as readonly string[]).indexOf(a.original.area ?? "");
-      const bi = (AREAS as readonly string[]).indexOf(b.original.area ?? "");
+      const ai = (DEPARTMENTS as readonly string[]).indexOf(a.original.department ?? "");
+      const bi = (DEPARTMENTS as readonly string[]).indexOf(b.original.department ?? "");
       return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
     });
 
     const entries: RowEntry[] = [];
-    let lastArea: string | null = null;
+    let lastDepartment: string | null = null;
     for (const row of sorted) {
-      const area = row.original.area ?? t("projects.noArea");
-      if (area !== lastArea) {
-        entries.push({ kind: "header", area });
-        lastArea = area;
+      const department = row.original.department ?? t("projects.noDepartment");
+      if (department !== lastDepartment) {
+        entries.push({ kind: "header", department });
+        lastDepartment = department;
       }
       entries.push({ kind: "row", row });
     }
     return entries;
     // table identity is stable across renders; sorting state already triggers
     // table.getRowModel() to recompute internally.
-  }, [table, groupByArea, t, sorting]);
+  }, [table, groupByDepartment, t, sorting]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -304,12 +304,12 @@ export function ProjectsTable({
           ) : (
             rowEntries.map((entry) =>
               entry.kind === "header" ? (
-                <tr key={`group-${entry.area}`}>
+                <tr key={`group-${entry.department}`}>
                   <td
                     colSpan={columns.length}
                     className="bg-muted/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {entry.area}
+                    {entry.department}
                   </td>
                 </tr>
               ) : (

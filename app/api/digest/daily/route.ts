@@ -28,7 +28,7 @@ Rules:
 - Plain markdown only. No tables, no images, no HTML.`;
 
 type TrimmedProject = {
-  area: string | null;
+  department: string | null;
   dueDate: string | null;
   estimatedMinutes: number | null;
   name: string;
@@ -78,7 +78,7 @@ async function gatherInputs(timezone: string, calendarId: string): Promise<Input
   const date = todayInTz(timezone);
   const projects = await listActiveProjects();
   const trimmedProjects: TrimmedProject[] = projects.map((p) => ({
-    area: p.area,
+    department: p.department,
     dueDate: p.dueDate,
     estimatedMinutes: p.estimatedMinutes,
     name: p.name,

@@ -7,6 +7,8 @@ import { useLocale, useT } from "@/lib/i18n";
 import type { TranslationKey } from "@/constants/translations";
 import { ROUTES } from "@/constants/routes";
 import { SettingsSection } from "./SettingsSection";
+import { ArchiveSweepSection } from "./ArchiveSweepSection";
+import { RoadmapDraftSection } from "./RoadmapDraftSection";
 
 type IntegrationKey = "notion" | "google" | "zoho" | "anthropic" | "supabase";
 
@@ -259,6 +261,10 @@ export function ProfileView({ email }: { email: string }) {
       </section>
 
       <SettingsSection />
+
+      <ArchiveSweepSection />
+
+      <RoadmapDraftSection />
     </div>
   );
 }

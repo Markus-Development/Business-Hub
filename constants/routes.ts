@@ -18,6 +18,8 @@ const clientGenerateTasks = (zohoId: string) =>
   `/api/clients/${encodeURIComponent(zohoId)}/generate-tasks`;
 const clientNotionPatch = (zohoId: string) =>
   `/api/clients/${encodeURIComponent(zohoId)}/notion`;
+const clientTemplates = (zohoId: string) =>
+  `/api/clients/${encodeURIComponent(zohoId)}/templates`;
 
 const areasBlocks = (id: string) => `/api/areas/${encodeURIComponent(id)}/blocks`;
 const areasUpdate = (id: string) => `/api/areas/${encodeURIComponent(id)}/update`;
@@ -59,6 +61,7 @@ export const ROUTES = {
       detail: clientDetail,
       generateTasks: clientGenerateTasks,
       notionPatch: clientNotionPatch,
+      templates: clientTemplates,
     },
     areas: {
       list: "/api/areas",
@@ -69,7 +72,9 @@ export const ROUTES = {
     resources: {
       list: "/api/resources",
       create: "/api/resources/create",
+      options: "/api/resources/options",
       blocks: (id: string) => `/api/resources/${encodeURIComponent(id)}/blocks`,
+      archive: (id: string) => `/api/resources/${encodeURIComponent(id)}/archive`,
     },
     google: {
       connect: "/api/google/connect",
@@ -82,6 +87,13 @@ export const ROUTES = {
       settings: "/api/profile/settings",
       calendars: "/api/profile/calendars",
       taskTypes: "/api/profile/task-types",
+    },
+    archive: {
+      sweep: "/api/archive/sweep",
+    },
+    roadmap: {
+      draft: "/api/roadmap/draft",
+      apply: "/api/roadmap/apply",
     },
   },
 } as const;

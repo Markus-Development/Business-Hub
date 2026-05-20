@@ -14,6 +14,9 @@ export type MergedClient = {
   industry: string | null;
   employees: number | null;
   monthlyRevenue: number | null;
+  monthlyFee: number | null;
+  person: string | null;
+  clientStatus: string | null;
   callNotesLink: string | null;
   clientDatabaseLink: string | null;
   dashboardLink: string | null;
@@ -50,6 +53,9 @@ export async function GET() {
         industry: linked?.industry ?? null,
         employees: linked?.employees ?? null,
         monthlyRevenue: linked?.monthlyRevenue ?? null,
+        monthlyFee: linked?.monthlyFee ?? null,
+        person: linked?.person ?? null,
+        clientStatus: linked?.clientStatus ?? null,
         callNotesLink: linked?.callNotesLink ?? null,
         clientDatabaseLink: linked?.clientDatabaseLink ?? null,
         dashboardLink: linked?.dashboardLink ?? null,

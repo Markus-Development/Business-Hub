@@ -64,6 +64,14 @@ export function ClientDetail({
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-semibold text-foreground">{client.name}</h2>
+          {client.person ? (
+            <p className="mt-1 text-sm text-foreground">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t("clients.person")}:
+              </span>{" "}
+              {client.person}
+            </p>
+          ) : null}
           {client.email ? (
             <p className="mt-1 text-sm text-muted-foreground">{client.email}</p>
           ) : null}
@@ -269,6 +277,10 @@ function MetadataGrid({
         placeholder=""
         formatter={(n) => formatEur(n, locale)}
       />
+      <ReadOnlyField
+        label={t("clients.monthlyFee")}
+        value={client.monthlyFee === null ? null : formatEur(client.monthlyFee, locale)}
+      />
       <UrlField
         label={t("clients.metadata.callNotesLink")}
         value={client.callNotesLink}
@@ -284,6 +296,18 @@ function MetadataGrid({
         value={client.dashboardLink}
         onSave={(v) => patchField("Dashboard Link", v, { dashboardLink: v })}
       />
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string | null }) {
+  const t = useT();
+  return (
+    <div>
+      <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </label>
+      <p className="mt-1 text-sm text-foreground">{value ?? t("clients.metadata.empty")}</p>
     </div>
   );
 }
