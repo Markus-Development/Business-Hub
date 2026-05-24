@@ -6,6 +6,12 @@ import {
   DEFAULT_REASON_RESOURCE,
   type ReasonArchived,
 } from "@/constants/archive";
+import type {
+  CallType,
+  EngagementLevel,
+  ObjectionTag,
+  Outcome,
+} from "@/constants/call-notes";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -996,4 +1002,95 @@ export async function archiveResourcePage(
     throwSourceTrashFailed("archiveResourcePage", archiveId, pageId, err);
   }
   return { archiveId, sourceArchived: true };
+}
+
+// ===== Call Notes DB =======================================================
+// The Call Notes DB is created manually by Markus in Notion (the integration
+// does not create databases). NOTION_CALL_NOTES_DB_ID must be set in
+// .env.local. Pages are written by /api/calls/create, which is called by the
+// external "Call Miner" Cowork skill — Business Hub owns the schema mapping.
+
+let callNotesDataSourceId: string | null = null;
+
+async function getCallNotesDataSourceId(): Promise<string> {
+  if (callNotesDataSourceId) return callNotesDataSourceId;
+  const dbId = process.env.NOTION_CALL_NOTES_DB_ID;
+  if (!dbId) throw new Error("call_notes_not_configured");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Call Notes DB has no data_sources — is the integration shared with the database?");
+  callNotesDataSourceId = ds.id;
+  return ds.id;
+}
+
+export type CallNoteDraft = {
+  name: string;
+  callType: CallType;
+  date: string; // YYYY-MM-DD
+  clientNotionPageId?: string | null;
+  duration?: number | null;
+  outcome?: Outcome | null;
+  engagement?: EngagementLevel | null;
+  objectionsCount?: number | null;
+  objectionsTags?: ObjectionTag[];
+  body?: string;
+};
+
+// Creates a page in the Call Notes DB. Only the fields present on the draft are
+// written. `body`, when non-empty, is appended as paragraph blocks after the
+// page is created — an append failure is non-fatal (logged, not thrown).
+export async function createCallNote(
+  draft: CallNoteDraft,
+): Promise<{ id: string; url: string }> {
+  if (!process.env.NOTION_CALL_NOTES_DB_ID) {
+    throw new Error("call_notes_not_configured");
+  }
+  const dataSourceId = await getCallNotesDataSourceId();
+
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: draft.name } }] },
+    "Call Type": { type: "select", select: { name: draft.callType } },
+    Date: { type: "date", date: { start: draft.date } },
+  };
+  if (draft.clientNotionPageId) {
+    properties.Client = {
+      type: "relation",
+      relation: [{ id: draft.clientNotionPageId }],
+    };
+  }
+  if (draft.duration != null) {
+    properties.Duration = { type: "number", number: draft.duration };
+  }
+  if (draft.outcome) {
+    properties.Outcome = { type: "select", select: { name: draft.outcome } };
+  }
+  if (draft.engagement) {
+    properties.Engagement = { type: "select", select: { name: draft.engagement } };
+  }
+  if (draft.objectionsCount != null) {
+    properties["Objections Count"] = { type: "number", number: draft.objectionsCount };
+  }
+  if (draft.objectionsTags && draft.objectionsTags.length > 0) {
+    properties["Objections Tags"] = {
+      type: "multi_select",
+      multi_select: draft.objectionsTags.map((name) => ({ name })),
+    };
+  }
+
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+
+  // Non-fatal: the page exists even if the block append fails.
+  if (draft.body && draft.body.trim()) {
+    await appendTextBlocks(page.id, draft.body).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn("append_blocks_failed", err);
+    });
+  }
+
+  return { id: page.id as string, url: page.url as string };
 }

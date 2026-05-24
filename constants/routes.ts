@@ -95,5 +95,8 @@ export const ROUTES = {
       draft: "/api/roadmap/draft",
       apply: "/api/roadmap/apply",
     },
+    calls: {
+      create: "/api/calls/create",
+    },
   },
 } as const;
