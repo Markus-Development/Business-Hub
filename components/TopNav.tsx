@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plug } from "lucide-react";
+import { Plug, Inbox } from "lucide-react";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -79,6 +79,18 @@ export function TopNav() {
           })}
         </nav>
         <div className="flex items-center gap-3">
+          <Link
+            href={ROUTES.pages.capture}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              pathname === ROUTES.pages.capture
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-border bg-card text-foreground hover:bg-muted",
+            )}
+          >
+            <Inbox className="size-3.5" aria-hidden />
+            {t("nav.capture")}
+          </Link>
           <LocaleToggle />
           {googleConnected === false && (
             <a

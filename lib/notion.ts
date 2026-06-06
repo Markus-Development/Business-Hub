@@ -12,6 +12,7 @@ import type {
   ObjectionTag,
   Outcome,
 } from "@/constants/call-notes";
+import type { InboxType } from "@/constants/inbox";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -96,6 +97,10 @@ function asRichText(prop: any): string {
 function asDate(prop: any): string | null {
   if (!prop || prop.type !== "date") return null;
   return prop.date?.start ?? null;
+}
+function asCheckbox(prop: any): boolean {
+  if (!prop || prop.type !== "checkbox") return false;
+  return prop.checkbox === true;
 }
 function asNumber(prop: any): number | null {
   if (!prop || prop.type !== "number") return null;
@@ -515,6 +520,7 @@ export type NotionArea = {
   goal: string;
   healthMetric: string;
   notionUrl: string;
+  archived: boolean;
 };
 
 export type AreaUpdateField =
@@ -553,6 +559,7 @@ function toArea(page: any): NotionArea {
     goal: asRichText(requireProp(p, "Goal")),
     healthMetric: asRichText(requireProp(p, "Health Metric")),
     notionUrl: page.url,
+    archived: asCheckbox(p["Archived"]),
   };
 }
 
@@ -574,7 +581,7 @@ export async function listAreas(): Promise<NotionArea[]> {
     }
     startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
   } while (startCursor);
-  return areas;
+  return areas.filter((a) => !a.archived);
 }
 
 // Status is `select` on the Areas DB (not `status` like Projects). Rich-text
@@ -1092,5 +1099,44 @@ export async function createCallNote(
     });
   }
 
+  return { id: page.id as string, url: page.url as string };
+}
+
+// -- Inbox (Quick Capture) ---------------------------------------------------
+
+let inboxDataSourceId: string | null = null;
+
+async function getInboxDataSourceId(): Promise<string> {
+  if (inboxDataSourceId) return inboxDataSourceId;
+  const dbId = process.env.NOTION_INBOX_DB_ID;
+  if (!dbId) throw new Error("NOTION_INBOX_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) throw new Error("Inbox DB has no data_sources — is the integration shared with the database?");
+  inboxDataSourceId = ds.id;
+  return ds.id;
+}
+
+/**
+ * Quick Capture: create a raw entry in the Notion Inbox DB. Sets Name (title),
+ * Type (select) and Processed (checkbox=false). `Routed To` is intentionally
+ * left empty — triage happens later in Notion. Mirrors the data_source_id
+ * create pattern used by createResource/createProject (Notion 2025-09-03+).
+ */
+export async function addToInbox(
+  name: string,
+  type: InboxType,
+): Promise<{ id: string; url: string }> {
+  const dataSourceId = await getInboxDataSourceId();
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: {
+      Name: { type: "title", title: [{ type: "text", text: { content: name } }] },
+      Type: { type: "select", select: { name: type } },
+      Processed: { type: "checkbox", checkbox: false },
+    } as any,
+  })) as any;
   return { id: page.id as string, url: page.url as string };
 }

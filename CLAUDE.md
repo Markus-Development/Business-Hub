@@ -610,6 +610,10 @@ SUPABASE_SERVICE_ROLE_KEY=    # server-only, bypasses RLS
 
 # Anthropic — decision layer
 ANTHROPIC_API_KEY=
+
+# App password gate (proxy.ts + /api/auth/login)
+APP_PASSWORD=                 # the single password that unlocks the hub
+SESSION_SECRET=               # >= 32 chars — seals the iron-session cookie
 ```
 
 ## PARA Data Model in Notion
@@ -817,7 +821,7 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 **Dependencies installed:**
 - SDKs: `@notionhq/client` ^5.21.0, `@anthropic-ai/sdk` ^0.96.0, `@supabase/supabase-js` ^2.105.4, `googleapis` ^171.4.0, `axios` ^1.16.1.
 - View libs: `@tanstack/react-table` ^8.21.3, `@dnd-kit/core` ^6.3.1, `@dnd-kit/sortable` ^10.0.0, `@fullcalendar/{react,core,daygrid,timegrid,interaction}` all ^6.1.20.
-- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0, `react-markdown` ^10.1.0 (renders the daily-briefing markdown on `/digest`), `diff` ^9.0.0 + `@types/diff` ^7.0.2 (server-side unified diff for `/api/roadmap/draft`).
+- Utility libs: `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, `next-themes` (only used by `components/ui/sonner.tsx`; no `ThemeProvider`), `sonner`, `radix-ui`, `lucide-react` ^1.16.0, `react-markdown` ^10.1.0 (renders the daily-briefing markdown on `/digest`), `diff` ^9.0.0 + `@types/diff` ^7.0.2 (server-side unified diff for `/api/roadmap/draft`), `iron-session` ^8.0.4 (seals the `bh_session` cookie for the app-wide password gate; Edge-compatible via iron-webcrypto).
 
 **Secrets & external systems:**
 - `.env.local` populated with Notion, Google, Zoho, Supabase, Anthropic secrets (not committed). Notion DB IDs populated: `NOTION_PROJECTS_DB_ID`, `NOTION_INBOX_DB_ID`, `NOTION_CLIENTS_DB_ID`, `NOTION_AREAS_DB_ID`, `NOTION_RESOURCES_DB_ID`.
@@ -880,6 +884,23 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - `/resources` — Tab 6, fully built (see below).
 - `/profile` — integration status surface (see below). Linked from the top-nav avatar.
 - `/settings/google-connected`, `/settings/google-error` — OAuth flow landings.
+- `/login` — password gate (see Password gate below). Renders outside the gate.
+- `/capture` — Quick Capture into the Notion Inbox DB (see Quick Capture below).
+
+**Password gate (app-wide, cookie-based):**
+- [proxy.ts](proxy.ts) (Next 16 `proxy` file convention — the renamed successor to `middleware`; exports a `proxy(req)` function + a `config.matcher`) gates every request behind a single password. Unauthenticated requests redirect to `/login`.
+- Session is an `iron-session` sealed cookie (`bh_session`, httpOnly, `secure` in production, `sameSite=lax`, 30-day `maxAge`). Seal config lives in [lib/session.ts](lib/session.ts) (`sessionOptions` + `SessionData`) and is shared by the Edge proxy and the Node login route so the same cookie is sealed on login and unsealed on every request. iron-session v8 is Edge-compatible via iron-webcrypto.
+- `POST /api/auth/login` ([app/api/auth/login/route.ts](app/api/auth/login/route.ts), `runtime = "nodejs"`) compares the posted password against `APP_PASSWORD`; on match it sets `session.isLoggedIn = true` and saves the cookie. 401 `invalid_password` on mismatch, 503 `not_configured` when `APP_PASSWORD` is unset.
+- [app/login/page.tsx](app/login/page.tsx) + [app/login/_components/LoginForm.tsx](app/login/_components/LoginForm.tsx): single password field; on success it does a full navigation to `/projects` so the new cookie is present when the proxy evaluates the next request. The page uses a `fixed inset-0` wrapper to escape the global `min-w-[1280px]` `<main>` so the gate is usable on a phone.
+- **Four paths are deliberately NOT gated** (the allowlist in proxy.ts): `/login`, `/api/auth/login`, `/api/auth/callback/google` (Google calls it server-side during OAuth with no session cookie — gating it breaks calendar auth), and `/api/calls/create` (the external Call Miner skill posts unauthenticated in v1). Static assets (`_next`, `favicon`) are excluded via the matcher.
+- Env vars: `APP_PASSWORD` (the password) and `SESSION_SECRET` (≥32 chars, seals the cookie). Both must be set in the deploy environment or the gate fails (503 / iron-session throws on seal).
+
+**Quick Capture (`/capture`):**
+- A deliberately mobile-friendly (phone-PWA) one-way capture surface that writes raw entries into the existing Notion **Inbox DB** (`NOTION_INBOX_DB_ID`). This is the first code in the repo that uses the Inbox DB.
+- [app/capture/page.tsx](app/capture/page.tsx) + [app/capture/_components/CaptureForm.tsx](app/capture/_components/CaptureForm.tsx): single-column form (textarea + a 4-button type picker over `INBOX_TYPES` + Save). On success it clears the textarea, toasts, and refocuses for fast successive capture (type selection is kept). Uses a `fixed inset-0` wrapper (with an in-page back link) to escape the global `min-w-[1280px]` `<main>` — scoped to `/capture` only; the rest of the hub stays desktop-first.
+- `POST /api/inbox/create` ([app/api/inbox/create/route.ts](app/api/inbox/create/route.ts), `runtime = "nodejs"`): body `{ name, type }`. Validates `name` non-empty and `type` against `INBOX_TYPES` (400 `missing_name` / `invalid_type`), 503 `not_configured` when `NOTION_INBOX_DB_ID` is unset. Calls `addToInbox`.
+- [lib/notion.ts](lib/notion.ts) additive `addToInbox(name, type)` — creates a page in the Inbox DB via the lazily-cached `inboxDataSourceId` (same `data_source_id` create pattern as `createResource`/`createProject`, Notion 2025-09-03+). Sets `Name` (title), `Type` (select), `Processed` (checkbox=false); `Routed To` is left empty (triage happens later in Notion).
+- Constants: `INBOX_TYPES` + `InboxType` in [constants/inbox.ts](constants/inbox.ts); `ROUTES.pages.{login,capture}`, `ROUTES.api.auth.login`, `ROUTES.api.inbox.create` in [constants/routes.ts](constants/routes.ts). A **Capture** link sits in the top-nav action cluster (lucide `Inbox` icon). i18n under `login.*` / `capture.*` / `nav.capture` in [constants/translations.ts](constants/translations.ts) (DE+EN).
 
 **Tab 1 (Projects) — complete:**
 - Three view modes — Table (TanStack), Kanban (dnd-kit, grouped by Status, drag-drop writes Status; Priority shown as pill), Calendar (FullCalendar `dayGridMonth` + `interaction` plugin, drag-to-reschedule writes Due Date).
@@ -1003,6 +1024,8 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 - Supabase tables beyond `google_oauth_tokens`, `briefings`, `time_block_suggestions`, `user_settings`, `client_template_overrides`.
 - Any agents or sub-agents.
 - **RLS on `google_oauth_tokens` / `briefings` / `time_block_suggestions` / `user_settings` / `client_template_overrides`** (currently relying on service-role-only access). **1.0 blocker.**
+- **Inbox triage view** — Quick Capture writes raw entries into the Notion Inbox DB, but there is no surface in Business Hub to process them (classify + route an Inbox item to a Project / Resource / Area, then flip `Processed`). This is the natural next step now that capture exists; triage today happens manually in Notion.
+- **`/api/calls/create` authentication** — the route is deliberately left ungated by the password proxy (the external Call Miner skill posts to it without a session cookie). It currently has no auth of its own; a shared-secret / bearer token for this endpoint is an open hardening item before relying on it from outside.
 
 **Next planned step:** in order — (1) resolve the WhatsApp template-overrides UI (finish wire-up or rip out the backend); (2) fix the URL/rich_text property-type mismatch on the three Clients-DB link fields once the Notion schema is confirmed; (3) confirm the Notion Clients DB has every property the code expects (`Monthly Fee`, `Person`, `Status`, `Tier`, `Acquisition Source`); (4) build the Tab 2 weekly plan (extends `/digest` with a 5-day Sonnet view over Active projects + deadlines).
 

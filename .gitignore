@@ -37,3 +37,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local working artifacts — never commit (Claude Code state, screenshots,
+# spreadsheets, scratch HTML exports, research/synthesis scratch notes)
+.claude/
+*.png
+*.xlsx
+mine-geldstruktur.html
+software-kuendigungen.html
+SYNTHESE_TESTIMONIALS_2026-05-24.md
+CLAUDE_CODE_PROMPT_verbatim_rule.md

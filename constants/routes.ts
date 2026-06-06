@@ -34,6 +34,8 @@ export const ROUTES = {
     areas: "/areas",
     resources: "/resources",
     profile: "/profile",
+    capture: "/capture",
+    login: "/login",
     googleConnected: "/settings/google-connected",
     googleError: "/settings/google-error",
   },
@@ -97,6 +99,12 @@ export const ROUTES = {
     },
     calls: {
       create: "/api/calls/create",
+    },
+    auth: {
+      login: "/api/auth/login",
+    },
+    inbox: {
+      create: "/api/inbox/create",
     },
   },
 } as const;

@@ -13,6 +13,7 @@ export const translations = {
   "nav.clients": { de: "Kunden", en: "Clients" },
   "nav.areas": { de: "Bereiche", en: "Areas" },
   "nav.resources": { de: "Ressourcen", en: "Resources" },
+  "nav.capture": { de: "Erfassen", en: "Capture" },
 
   "locale.de": { de: "DE", en: "DE" },
   "locale.en": { de: "EN", en: "EN" },
@@ -183,6 +184,18 @@ export const translations = {
   "timeblocks.errorNoFreeSlots": {
     de: "Heute sind zwischen 09:00 und 18:00 keine freien Zeitfenster verfügbar.",
     en: "No free slots between 09:00 and 18:00 today.",
+  },
+
+  "digest.timeblocks.titleMulti": { de: "Zeitblöcke", en: "Time blocks" },
+  "digest.timeblocks.generateMulti": {
+    de: "Nächste 5 Tage planen",
+    en: "Plan next 5 days",
+  },
+  "digest.timeblocks.dayToday": { de: "Heute", en: "Today" },
+  "digest.timeblocks.dayTomorrow": { de: "Morgen", en: "Tomorrow" },
+  "digest.timeblocks.emptyMulti": {
+    de: "Keine Arbeitsblöcke verfügbar",
+    en: "No work blocks available",
   },
 
   "profile.title": { de: "Profil", en: "Profile" },
@@ -387,6 +400,19 @@ export const translations = {
     de: "Vorschläge konnten nicht geladen werden.",
     en: "Could not load suggestions.",
   },
+  "calendar.errorTokenRevoked": {
+    de: "Google-Verbindung abgelaufen",
+    en: "Google connection expired",
+  },
+  "calendar.reconnect.title": {
+    de: "Google-Kalender neu verbinden",
+    en: "Reconnect Google Calendar",
+  },
+  "calendar.reconnect.body": {
+    de: "Die Verbindung ist abgelaufen. Bitte erneut verbinden.",
+    en: "The connection has expired. Please reconnect.",
+  },
+  "calendar.reconnect.cta": { de: "Jetzt verbinden", en: "Connect now" },
 
   "calendar.dialog.newTitle": { de: "Neuer Termin", en: "New Event" },
   "calendar.dialog.editTitle": { de: "Termin bearbeiten", en: "Edit Event" },
@@ -733,6 +759,39 @@ export const translations = {
     en: "Google connection failed",
   },
   "google.error.retry": { de: "Erneut versuchen", en: "Try again" },
+
+  "login.title": { de: "Business Hub", en: "Business Hub" },
+  "login.subtitle": {
+    de: "Passwort eingeben, um fortzufahren.",
+    en: "Enter the password to continue.",
+  },
+  "login.passwordPlaceholder": { de: "Passwort", en: "Password" },
+  "login.submit": { de: "Anmelden", en: "Sign in" },
+  "login.submitting": { de: "Anmelden …", en: "Signing in…" },
+  "login.error": { de: "Falsches Passwort.", en: "Wrong password." },
+
+  "capture.title": { de: "Schnell erfassen", en: "Quick Capture" },
+  "capture.subtitle": {
+    de: "Landet roh in der Notion-Inbox. Sortieren kommt später.",
+    en: "Drops straight into the Notion inbox. Triage later.",
+  },
+  "capture.back": { de: "Zurück", en: "Back" },
+  "capture.placeholder": {
+    de: "Was geht dir durch den Kopf?",
+    en: "What's on your mind?",
+  },
+  "capture.typeLabel": { de: "Typ", en: "Type" },
+  "capture.type.task": { de: "Aufgabe", en: "Task" },
+  "capture.type.idea": { de: "Idee", en: "Idea" },
+  "capture.type.reference": { de: "Referenz", en: "Reference" },
+  "capture.type.someday": { de: "Irgendwann", en: "Someday" },
+  "capture.save": { de: "In Inbox speichern", en: "Save to inbox" },
+  "capture.saving": { de: "Speichern …", en: "Saving…" },
+  "capture.success": { de: "In der Inbox gespeichert", en: "Saved to inbox" },
+  "capture.error": {
+    de: "Konnte nicht gespeichert werden.",
+    en: "Could not save.",
+  },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;
