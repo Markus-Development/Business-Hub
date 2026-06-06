@@ -91,7 +91,16 @@ export async function getAccessToken(): Promise<string> {
 
   const client = getOAuthClient();
   client.setCredentials({ refresh_token: row.refresh_token });
-  const { credentials } = await client.refreshAccessToken();
+  let credentials: { access_token?: string | null; expiry_date?: number | null };
+  try {
+    const result = await client.refreshAccessToken();
+    credentials = (result as { credentials: typeof credentials }).credentials;
+  } catch (innerErr) {
+    if ((innerErr as any)?.response?.data?.error === "invalid_grant") {
+      throw new Error("google_invalid_grant");
+    }
+    throw innerErr;
+  }
   if (!credentials.access_token) {
     throw new Error("Google refresh returned no access_token");
   }

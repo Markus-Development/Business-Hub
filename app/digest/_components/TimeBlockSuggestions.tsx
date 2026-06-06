@@ -1,11 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
+
+const HORIZON_DAYS = 5;
+
+function filterFuture(items: Suggestion[]): Suggestion[] {
+  const nowMs = Date.now();
+  return items.filter((s) => Date.parse(s.start_at) >= nowMs);
+}
+
+// "Today" / "Tomorrow" comparison runs in the browser's local zone — the row
+// `date` is YYYY-MM-DD set server-side in the user's configured timezone, which
+// in the solo-user case matches the browser. A traveller could see a 1-day skew;
+// that's acceptable and the rendered label still parses to a sensible date.
+function ymdToday(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function ymdAdd(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = new Date(y, m - 1, d + n, 12, 0, 0);
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+}
 
 type Suggestion = {
   id: string;
@@ -43,7 +66,11 @@ async function postSuggest(): Promise<{
   error?: string;
   status: number;
 }> {
-  const res = await fetch(ROUTES.api.digest.timeblocks, { method: "POST" });
+  const res = await fetch(ROUTES.api.digest.timeblocks, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ horizon_days: HORIZON_DAYS }),
+  });
   const body = (await res.json().catch(() => ({}))) as {
     suggestions?: Suggestion[];
     timezone?: string;
@@ -89,6 +116,7 @@ function formatRangeInTz(startIso: string, endIso: string, timezone: string | nu
 
 export function TimeBlockSuggestions() {
   const t = useT();
+  const [locale] = useLocale();
   const [items, setItems] = useState<Suggestion[]>([]);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [state, setState] = useState<FetchState>("initial");
@@ -106,7 +134,7 @@ export function TimeBlockSuggestions() {
     fetchSuggestions()
       .then((data) => {
         if (cancelled) return;
-        setItems(data.suggestions);
+        setItems(filterFuture(data.suggestions));
         setTimezone(data.timezone);
         setState("ready");
       })
@@ -130,7 +158,10 @@ export function TimeBlockSuggestions() {
         toast.error(t("timeblocks.errorGoogleNotConnected"));
         return;
       }
-      if (result.status === 409 && result.error === "no_free_slots") {
+      if (
+        result.status === 409 &&
+        (result.error === "no_free_slots" || result.error === "no_viable_days")
+      ) {
         toast.error(t("timeblocks.errorNoFreeSlots"));
         return;
       }
@@ -140,10 +171,13 @@ export function TimeBlockSuggestions() {
         console.error("timeblocks_suggest_failed", result.error);
         return;
       }
-      // Merge new pending suggestions with existing pending ones, ordered by start.
+      // Merge new pending suggestions with existing pending ones, drop any that
+      // would already be in the past, and order by start.
       setItems((prev) => {
         const merged = [...prev, ...result.suggestions];
-        return merged.sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
+        return filterFuture(merged).sort(
+          (a, b) => Date.parse(a.start_at) - Date.parse(b.start_at),
+        );
       });
       if (result.timezone) setTimezone(result.timezone);
       toast.success(t("timeblocks.generated"));
@@ -190,10 +224,41 @@ export function TimeBlockSuggestions() {
     [items, t],
   );
 
+  // Group future suggestions by `date` (YYYY-MM-DD) and sort groups ascending.
+  // Each group's own list is already sorted because `items` is kept ordered.
+  const groups = useMemo(() => {
+    const map = new Map<string, Suggestion[]>();
+    for (const s of items) {
+      const bucket = map.get(s.date);
+      if (bucket) bucket.push(s);
+      else map.set(s.date, [s]);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [items]);
+
+  const formatDayLabel = useCallback(
+    (dateYmd: string): string => {
+      const today = ymdToday();
+      if (dateYmd === today) return t("digest.timeblocks.dayToday");
+      if (dateYmd === ymdAdd(today, 1)) return t("digest.timeblocks.dayTomorrow");
+      // Treat as local noon — a date-string boundary that's immune to TZ flips.
+      const [y, m, d] = dateYmd.split("-").map(Number);
+      const at = new Date(y, m - 1, d, 12, 0, 0);
+      return new Intl.DateTimeFormat(locale, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }).format(at);
+    },
+    [locale, t],
+  );
+
   return (
     <section className="mx-auto max-w-4xl px-6 pb-10">
       <header className="flex items-baseline justify-between gap-4">
-        <h2 className="text-lg font-semibold text-foreground">{t("timeblocks.title")}</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("digest.timeblocks.titleMulti")}
+        </h2>
         {state === "ready" && items.length > 0 ? (
           <Button
             variant="outline"
@@ -211,60 +276,73 @@ export function TimeBlockSuggestions() {
           <p className="text-sm text-muted-foreground">{t("timeblocks.loading")}</p>
         ) : items.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-8 py-10 text-center shadow-sm">
-            <p className="text-sm text-muted-foreground">{t("timeblocks.emptyHint")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("digest.timeblocks.emptyMulti")}
+            </p>
             <Button
               className="mt-5"
               onClick={handleSuggest}
               disabled={generating}
             >
-              {generating ? t("timeblocks.generating") : t("timeblocks.suggest")}
+              {generating
+                ? t("timeblocks.generating")
+                : t("digest.timeblocks.generateMulti")}
             </Button>
           </div>
         ) : (
-          <ul className="space-y-3">
-            {items.map((s) => {
-              const busy = pendingActionId === s.id;
-              return (
-                <li
-                  key={s.id}
-                  className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">
-                        {s.project_name}
-                      </p>
-                      <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                        {formatRangeInTz(s.start_at, s.end_at, timezone)}
-                      </p>
-                      <p className="mt-2 text-sm text-foreground">{s.rationale}</p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDismiss(s.id)}
-                        disabled={busy}
-                        aria-label={t("timeblocks.dismiss")}
+          <div className="space-y-6">
+            {groups.map(([date, daySuggestions]) => (
+              <div key={date}>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {formatDayLabel(date)}
+                </h3>
+                <ul className="space-y-3">
+                  {daySuggestions.map((s) => {
+                    const busy = pendingActionId === s.id;
+                    return (
+                      <li
+                        key={s.id}
+                        className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm"
                       >
-                        <X className="size-4" />
-                        <span className="ml-1">{t("timeblocks.dismiss")}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleConfirm(s.id)}
-                        disabled={busy}
-                        aria-label={t("timeblocks.confirm")}
-                      >
-                        <Check className="size-4" />
-                        <span className="ml-1">{t("timeblocks.confirm")}</span>
-                      </Button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground">
+                              {s.project_name}
+                            </p>
+                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                              {formatRangeInTz(s.start_at, s.end_at, timezone)}
+                            </p>
+                            <p className="mt-2 text-sm text-foreground">{s.rationale}</p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDismiss(s.id)}
+                              disabled={busy}
+                              aria-label={t("timeblocks.dismiss")}
+                            >
+                              <X className="size-4" />
+                              <span className="ml-1">{t("timeblocks.dismiss")}</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirm(s.id)}
+                              disabled={busy}
+                              aria-label={t("timeblocks.confirm")}
+                            >
+                              <Check className="size-4" />
+                              <span className="ml-1">{t("timeblocks.confirm")}</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </section>

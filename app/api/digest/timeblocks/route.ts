@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { listActiveProjects } from "@/lib/notion";
-import { getPrimaryBusy, isGoogleConnected, type BusyInterval } from "@/lib/google";
+import {
+  getPrimaryBusy,
+  isGoogleConnected,
+  listEvents,
+  type BusyInterval,
+} from "@/lib/google";
 import { briefing, extractText } from "@/lib/anthropic";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUserSettings } from "@/lib/settings";
@@ -45,23 +50,38 @@ function resolveWorkdayHours(
   return { startHour, endHour };
 }
 
-const SYSTEM_PROMPT = `You are Markus's time-block planner for Business Hub.
-You will be given Active projects and a list of FREE intervals on today's calendar in Markus's configured timezone.
-You may also be given a daily briefing for context.
+const SYSTEM_PROMPT_MULTI = `You are Markus's multi-day time-block planner for Business Hub.
+You will be given Active projects and, for each viable day in a forward-looking horizon, the calendar events on that day plus the FREE intervals available, all in Markus's configured timezone.
 
 Return STRICT JSON only — no markdown, no prose, no code fences. Schema:
-{ "suggestions": [ { "project_name": string, "start_iso": string, "end_iso": string, "rationale": string } ] }
+{
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "work_day": true,
+      "suggestions": [
+        { "project_name": string, "start": "<ISO>", "end": "<ISO>", "rationale": string }
+      ]
+    },
+    { "date": "YYYY-MM-DD", "work_day": false }
+  ]
+}
 
-Rules:
-- 1 to 4 suggestions, ordered by start_iso ascending. Prefer 2-4 when the free intervals comfortably allow it; return 1 only when the remaining intervals are too few or too short for more. Never fabricate to hit a count.
+Determining work_day:
+- Mark work_day false if the day's events suggest a non-work day — travel, family outing, leisure activities, holiday, full-day personal events.
+- Mark work_day true if the day is open or has normal work-adjacent events (meetings, calls, focused-work blocks). When in doubt, mark true.
+- When work_day is false, omit "suggestions" (or return an empty array).
+
+Suggestions on work days:
+- 1 to 4 blocks per day, ordered by start ascending. Prefer 2-4 when the free intervals comfortably allow it; never fabricate to hit a count.
 - Each block 25-90 minutes long.
-- start_iso and end_iso must be ISO-8601 timestamps with timezone offset, strictly inside one of the provided free intervals.
+- start and end must be ISO-8601 timestamps with timezone offset, strictly inside one of the provided free intervals for THAT day.
 - Pick projects from the provided list. Use the project's exact Name.
-- rationale: under 20 words; explain why this project deserves this slot today.
-- Prefer high-priority and near-deadline projects. Do not stack two blocks for the same project unless inputs strongly justify it.
-- Do not invent projects or slots.
+- rationale: under 20 words; explain why this project deserves this slot.
+- Prefer high-priority and near-deadline projects. Do not stack two blocks for the same project on the same day unless inputs strongly justify it.
+- Do not invent projects, dates, or slots.
 
-Your entire response must be valid JSON. Do not write any text before or after the JSON object. Do not explain, narrate, or describe the intervals — just return the JSON.`;
+You must include an entry in the "days" array for every date provided in the input. Your entire response must be valid JSON. Do not write any text before or after the JSON object.`;
 
 type TrimmedProject = {
   dueDate: string | null;
@@ -70,6 +90,28 @@ type TrimmedProject = {
   nextAction: string;
   priority: string | null;
 };
+
+// Add `n` calendar days to a YYYY-MM-DD string. Uses UTC noon as the pivot so
+// DST shifts (±1 h) can't roll the date forward or backward. Independent of TZ
+// because we're operating on a label, not an instant.
+function addDaysYmd(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const pivot = Date.UTC(y, m - 1, d, 12, 0, 0);
+  const next = new Date(pivot + n * 86_400_000);
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}
+
+// Renders an ISO instant as HH:mm in the given timezone — used to give Sonnet
+// human-readable event timestamps without leaking raw UTC strings into the prompt.
+function formatLocalTime(iso: string, timezone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
 
 function subtractBusy(
   windowStart: string,
@@ -106,16 +148,21 @@ type ModelSuggestion = {
   rationale: string;
 };
 
-function parseSuggestions(raw: string): ModelSuggestion[] {
+type ModelDay = {
+  date: string;
+  work_day: boolean;
+  suggestions: ModelSuggestion[];
+};
+
+function parseMultiDay(raw: string): ModelDay[] {
   // Strip optional ```json fences defensively even though the prompt forbids them.
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   }
-  // Second safety net: if the model still wrapped JSON in prose (e.g. ignored
-  // the prefill + system prompt), extract the first `{...}` block. The greedy
-  // `[\s\S]*` matches across newlines and grabs to the LAST `}`, which is what
-  // we want for a single object literal.
+  // Second safety net: if the model wrapped JSON in prose, extract the first `{...}`
+  // block. Greedy match across newlines, grabs to the LAST `}` — correct for a
+  // single top-level object literal.
   if (!cleaned.startsWith("{")) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("no_json_object_found");
@@ -125,73 +172,61 @@ function parseSuggestions(raw: string): ModelSuggestion[] {
   if (
     !parsed ||
     typeof parsed !== "object" ||
-    !Array.isArray((parsed as { suggestions?: unknown }).suggestions)
+    !Array.isArray((parsed as { days?: unknown }).days)
   ) {
-    throw new Error("missing_suggestions_array");
+    throw new Error("missing_days_array");
   }
-  const out: ModelSuggestion[] = [];
-  for (const item of (parsed as { suggestions: unknown[] }).suggestions) {
-    if (!item || typeof item !== "object") throw new Error("invalid_suggestion_shape");
-    const s = item as Record<string, unknown>;
-    if (
-      typeof s.project_name !== "string" ||
-      typeof s.start_iso !== "string" ||
-      typeof s.end_iso !== "string" ||
-      typeof s.rationale !== "string"
-    ) {
-      throw new Error("invalid_suggestion_fields");
+  const out: ModelDay[] = [];
+  for (const item of (parsed as { days: unknown[] }).days) {
+    if (!item || typeof item !== "object") throw new Error("invalid_day_shape");
+    const d = item as Record<string, unknown>;
+    if (typeof d.date !== "string") throw new Error("invalid_day_date");
+    if (typeof d.work_day !== "boolean") throw new Error("invalid_day_workday");
+    const suggestions: ModelSuggestion[] = [];
+    if (d.work_day && Array.isArray(d.suggestions)) {
+      for (const s of d.suggestions) {
+        if (!s || typeof s !== "object") throw new Error("invalid_suggestion_shape");
+        const obj = s as Record<string, unknown>;
+        if (
+          typeof obj.project_name !== "string" ||
+          typeof obj.start !== "string" ||
+          typeof obj.end !== "string" ||
+          typeof obj.rationale !== "string"
+        ) {
+          throw new Error("invalid_suggestion_fields");
+        }
+        if (Number.isNaN(Date.parse(obj.start)) || Number.isNaN(Date.parse(obj.end))) {
+          throw new Error("invalid_suggestion_dates");
+        }
+        if (Date.parse(obj.end) <= Date.parse(obj.start)) {
+          throw new Error("end_before_start");
+        }
+        suggestions.push({
+          project_name: obj.project_name,
+          start_iso: obj.start,
+          end_iso: obj.end,
+          rationale: obj.rationale,
+        });
+      }
     }
-    if (Number.isNaN(Date.parse(s.start_iso)) || Number.isNaN(Date.parse(s.end_iso))) {
-      throw new Error("invalid_suggestion_dates");
-    }
-    if (Date.parse(s.end_iso) <= Date.parse(s.start_iso)) {
-      throw new Error("end_before_start");
-    }
-    out.push({
-      project_name: s.project_name,
-      start_iso: s.start_iso,
-      end_iso: s.end_iso,
-      rationale: s.rationale,
-    });
+    out.push({ date: d.date, work_day: d.work_day, suggestions });
   }
-  // Throw only on zero. The model may legitimately return just one suggestion
-  // when the remaining free intervals are too tight for more — that's still
-  // useful, and a 502 toast would be worse UX. Truncate to 4 in time order if
-  // the model overshoots (the prompt allows 1-4 but defends against drift).
-  if (out.length === 0) throw new Error("no_suggestions_returned");
-  const sorted = out.sort((a, b) => Date.parse(a.start_iso) - Date.parse(b.start_iso));
-  if (sorted.length > 4) {
-    // eslint-disable-next-line no-console
-    console.warn(`[timeblocks] model returned ${sorted.length} suggestions; truncating to 4`);
-    return sorted.slice(0, 4);
-  }
-  return sorted;
-}
-
-async function readLatestBriefingSummary(date: string): Promise<string | null> {
-  const db = supabaseServer();
-  const { data, error } = await db
-    .from(TABLES.BRIEFINGS)
-    .select("summary")
-    .eq("date", date)
-    .eq("kind", "daily")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to read briefing: ${error.message}`);
-  return (data as { summary: string } | null)?.summary ?? null;
+  return out;
 }
 
 export async function GET() {
   try {
     const settings = await getUserSettings();
-    const date = todayInTz(settings.timezone);
+    const today = todayInTz(settings.timezone);
+    const horizonEnd = addDaysYmd(today, 6);
+    const nowIso = new Date().toISOString();
     const db = supabaseServer();
     const { data, error } = await db
       .from(TABLES.TIME_BLOCK_SUGGESTIONS)
       .select(ROW_COLS)
-      .eq("date", date)
       .eq("status", "pending")
+      .gte("start_at", nowIso)
+      .lte("date", horizonEnd)
       .order("start_at", { ascending: true });
     if (error) throw new Error(`Failed to read suggestions: ${error.message}`);
     // Echo the configured timezone so the client can format start/end times
@@ -206,7 +241,21 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+const MIN_FREE_MINUTES_PER_DAY = 60;
+const DEFAULT_HORIZON_DAYS = 5;
+const MAX_HORIZON_DAYS = 7;
+
+type DaySkipped = { date: string; reason: string };
+
+type ViableDay = {
+  date: string;
+  windowStart: string;
+  windowEnd: string;
+  freeIntervals: BusyInterval[];
+  events: { title: string; local_start: string; local_end: string }[];
+};
+
+export async function POST(req: Request) {
   try {
     const connected = await isGoogleConnected();
     if (!connected) {
@@ -216,39 +265,84 @@ export async function POST() {
       );
     }
 
+    const body = (await req.json().catch(() => ({}))) as { horizon_days?: unknown };
+    const horizonRaw =
+      typeof body.horizon_days === "number" && Number.isFinite(body.horizon_days)
+        ? Math.floor(body.horizon_days)
+        : DEFAULT_HORIZON_DAYS;
+    const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, horizonRaw));
+
     const settings = await getUserSettings();
     const calendarId = settings.master_calendar_id ?? "primary";
-    const date = todayInTz(settings.timezone);
+    const today = todayInTz(settings.timezone);
     const { startHour, endHour } = resolveWorkdayHours(
       settings.task_type_windows as TaskTypeWindow[],
     );
-    const windowStart = localHourToIso(date, startHour, settings.timezone);
-    const windowEnd = localHourToIso(date, endHour, settings.timezone);
-
-    // Clamp the window start to "now" so we never propose blocks in the past.
-    // ISO Z-suffixed UTC strings compare lexicographically; both inputs are produced
-    // that way by localHourToIso and toISOString.
     const nowIso = new Date().toISOString();
-    const effectiveWindowStart = nowIso > windowStart ? nowIso : windowStart;
-    if (effectiveWindowStart >= windowEnd) {
-      return NextResponse.json(
-        { ok: false, error: "workday_past" },
-        { status: 409 },
-      );
+
+    // Pass 1: compute window per day, drop past-workday days up front.
+    type Candidate = { date: string; windowStart: string; windowEnd: string };
+    const candidates: Candidate[] = [];
+    const daysSkipped: DaySkipped[] = [];
+    for (let i = 0; i < horizonDays; i++) {
+      const date = addDaysYmd(today, i);
+      const windowStart = localHourToIso(date, startHour, settings.timezone);
+      const windowEnd = localHourToIso(date, endHour, settings.timezone);
+      // Only today's window can have already started; clamp to now so we never
+      // propose past blocks. Z-suffixed ISO strings compare lexicographically.
+      const effectiveStart = i === 0 && nowIso > windowStart ? nowIso : windowStart;
+      if (effectiveStart >= windowEnd) {
+        daysSkipped.push({ date, reason: "workday_past" });
+        continue;
+      }
+      candidates.push({ date, windowStart: effectiveStart, windowEnd });
     }
 
-    // Debug aid: confirm the workday window resolves to the right UTC instants
-    // for the configured timezone. Surfaces silent timezone drift in the server log.
-    // eslint-disable-next-line no-console
-    console.log(
-      `[timeblocks] tz=${settings.timezone} date=${date} window=${startHour}:00-${endHour}:00 → ${effectiveWindowStart} → ${windowEnd}`,
+    // Pass 2: fetch freebusy + events for each candidate in parallel.
+    // Solo-user workload (≤7 days × 2 calls) sits well inside Google's quotas.
+    const fetched = await Promise.all(
+      candidates.map(async (c) => {
+        const [busy, events] = await Promise.all([
+          getPrimaryBusy(c.windowStart, c.windowEnd, calendarId),
+          listEvents(calendarId, c.windowStart, c.windowEnd),
+        ]);
+        return { candidate: c, busy, events };
+      }),
     );
 
-    const busy = await getPrimaryBusy(effectiveWindowStart, windowEnd, calendarId);
-    const free = subtractBusy(effectiveWindowStart, windowEnd, busy);
-    if (free.length === 0) {
+    // Pass 3: derive free intervals; drop days with < MIN_FREE_MINUTES_PER_DAY free.
+    const viableDays: ViableDay[] = [];
+    for (const { candidate, busy, events } of fetched) {
+      const free = subtractBusy(candidate.windowStart, candidate.windowEnd, busy);
+      const totalFreeMs = free.reduce(
+        (sum, f) => sum + (Date.parse(f.end) - Date.parse(f.start)),
+        0,
+      );
+      if (totalFreeMs < MIN_FREE_MINUTES_PER_DAY * 60_000) {
+        daysSkipped.push({ date: candidate.date, reason: "insufficient_free_time" });
+        continue;
+      }
+      const dayEvents = events
+        .filter((e): e is typeof e & { start: string; end: string } =>
+          typeof e.start === "string" && typeof e.end === "string",
+        )
+        .map((e) => ({
+          title: e.summary,
+          local_start: formatLocalTime(e.start, settings.timezone),
+          local_end: formatLocalTime(e.end, settings.timezone),
+        }));
+      viableDays.push({
+        date: candidate.date,
+        windowStart: candidate.windowStart,
+        windowEnd: candidate.windowEnd,
+        freeIntervals: free,
+        events: dayEvents,
+      });
+    }
+
+    if (viableDays.length === 0) {
       return NextResponse.json(
-        { ok: false, error: "no_free_slots" },
+        { ok: false, error: "no_viable_days", days_skipped: daysSkipped },
         { status: 409 },
       );
     }
@@ -262,23 +356,35 @@ export async function POST() {
       priority: p.priority,
     }));
 
-    const briefingSummary = await readLatestBriefingSummary(date);
-
-    const userPrompt = [
-      `Date: ${date} (${settings.timezone})`,
-      `Workday window: ${effectiveWindowStart} → ${windowEnd}`,
-      "",
-      `Free intervals (${free.length}):`,
-      JSON.stringify(free, null, 2),
+    // One prompt for all viable days — keeps Sonnet aware of cross-day prioritisation
+    // (e.g. don't burn the urgent project's only slot on day 1 if day 2 is wide open).
+    const promptLines: string[] = [
+      `Timezone: ${settings.timezone}`,
+      `Today: ${today}`,
       "",
       `Active projects (${projects.length}):`,
       JSON.stringify(projects, null, 2),
-      briefingSummary
-        ? `\nToday's briefing for context:\n${briefingSummary}`
-        : "\n(No daily briefing for today.)",
-    ].join("\n");
+      "",
+      "Days to plan:",
+    ];
+    for (const day of viableDays) {
+      promptLines.push("");
+      promptLines.push(`--- ${day.date} ---`);
+      promptLines.push(`Workday window: ${day.windowStart} → ${day.windowEnd}`);
+      if (day.events.length > 0) {
+        promptLines.push(`Events (${day.events.length}):`);
+        for (const ev of day.events) {
+          promptLines.push(`  - ${ev.local_start}–${ev.local_end} ${ev.title}`);
+        }
+      } else {
+        promptLines.push("Events: none");
+      }
+      promptLines.push(`Free intervals (${day.freeIntervals.length}):`);
+      promptLines.push(JSON.stringify(day.freeIntervals, null, 2));
+    }
+    const userPrompt = promptLines.join("\n");
 
-    const response = await briefing(userPrompt, SYSTEM_PROMPT);
+    const response = await briefing(userPrompt, SYSTEM_PROMPT_MULTI);
     const raw = extractText(response);
     if (!raw) {
       return NextResponse.json(
@@ -287,9 +393,9 @@ export async function POST() {
       );
     }
 
-    let suggestions: ModelSuggestion[];
+    let days: ModelDay[];
     try {
-      suggestions = parseSuggestions(raw);
+      days = parseMultiDay(raw);
     } catch (err) {
       const message = err instanceof Error ? err.message : "parse_failed";
       return NextResponse.json(
@@ -298,28 +404,59 @@ export async function POST() {
       );
     }
 
-    const batchId = randomUUID();
-    const rows = suggestions.map((s) => ({
-      date,
-      project_name: s.project_name,
-      start_at: new Date(s.start_iso).toISOString(),
-      end_at: new Date(s.end_iso).toISOString(),
-      rationale: s.rationale,
-      status: "pending",
-      batch_id: batchId,
-    }));
-
     const db = supabaseServer();
-    const { data, error } = await db
-      .from(TABLES.TIME_BLOCK_SUGGESTIONS)
-      .insert(rows)
-      .select(ROW_COLS);
-    if (error) throw new Error(`Failed to persist suggestions: ${error.message}`);
+    const insertedRows: SuggestionRow[] = [];
+    const viableDates = new Set(viableDays.map((v) => v.date));
+
+    for (const day of days) {
+      if (!viableDates.has(day.date)) continue; // ignore hallucinated dates
+      if (!day.work_day) {
+        daysSkipped.push({ date: day.date, reason: "non_work_day" });
+        continue;
+      }
+      if (day.suggestions.length === 0) continue;
+
+      // Truncate to 4 per day in start order; the prompt allows 1-4 but defends against drift.
+      const sorted = day.suggestions
+        .slice()
+        .sort((a, b) => Date.parse(a.start_iso) - Date.parse(b.start_iso));
+      const truncated = sorted.length > 4 ? sorted.slice(0, 4) : sorted;
+      if (sorted.length > 4) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[timeblocks] date=${day.date} model returned ${sorted.length} suggestions; truncating to 4`,
+        );
+      }
+
+      const batchId = randomUUID();
+      const rows = truncated.map((s) => ({
+        date: day.date,
+        project_name: s.project_name,
+        start_at: new Date(s.start_iso).toISOString(),
+        end_at: new Date(s.end_iso).toISOString(),
+        rationale: s.rationale,
+        status: "pending",
+        batch_id: batchId,
+      }));
+
+      const { data, error } = await db
+        .from(TABLES.TIME_BLOCK_SUGGESTIONS)
+        .insert(rows)
+        .select(ROW_COLS);
+      if (error) throw new Error(`Failed to persist suggestions: ${error.message}`);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[timeblocks] date=${day.date} tz=${settings.timezone} blocks=${rows.length}`,
+      );
+      insertedRows.push(...((data ?? []) as SuggestionRow[]));
+    }
 
     return NextResponse.json({
-      suggestions: (data ?? []) as SuggestionRow[],
+      suggestions: insertedRows,
       timezone: settings.timezone,
-      batch_id: batchId,
+      days_processed: viableDays.length,
+      days_skipped: daysSkipped,
       model: MODELS.BRIEFING,
     });
   } catch (err) {

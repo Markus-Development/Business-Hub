@@ -13,11 +13,13 @@ export default async function AreasPage() {
 
   const [areas, projects] = await Promise.all([listAreas(), listActiveProjects()]);
 
+  const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+
   const projectCounts: Record<string, number> = {};
   const overdueCounts: Record<string, number> = {};
   for (const a of areas) {
-    projectCounts[a.name] = 0;
-    overdueCounts[a.name] = 0;
+    projectCounts[normalize(a.name)] = 0;
+    overdueCounts[normalize(a.name)] = 0;
   }
   // listActiveProjects() already filters to Active, so no status check here.
   // A project's Department value is matched against the Area DB name — the two

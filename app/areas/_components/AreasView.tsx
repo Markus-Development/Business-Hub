@@ -10,6 +10,8 @@ import type { AreaUpdateField, NotionArea } from "@/lib/notion";
 import { AreaCard } from "./AreaCard";
 import { AreaDrawer } from "./AreaDrawer";
 
+const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+
 type Props = {
   areas: NotionArea[];
   projectCounts: Record<string, number>;
@@ -109,8 +111,8 @@ export function AreasView({
             <AreaCard
               key={area.id}
               area={area}
-              activeProjectCount={projectCounts[area.name] ?? 0}
-              overdueCount={overdueCounts[area.name] ?? 0}
+              activeProjectCount={projectCounts[normalize(area.name)] ?? 0}
+              overdueCount={overdueCounts[normalize(area.name)] ?? 0}
               onOpen={() => setSelectedAreaId(area.id)}
               onPersist={(field, value) => persist(area.id, field, value)}
             />

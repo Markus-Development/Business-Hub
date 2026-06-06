@@ -28,7 +28,15 @@ export async function GET(req: Request) {
     const events = await listEvents(calendarId, start, end);
     return NextResponse.json({ events });
   } catch (err) {
+    console.error(
+      "[calendar/events] error",
+      err instanceof Error ? err.message : err,
+      (err as any)?.response?.data,
+    );
     const message = err instanceof Error ? err.message : "unknown_error";
+    if (message === "google_invalid_grant") {
+      return NextResponse.json({ ok: false, error: "google_invalid_grant" }, { status: 409 });
+    }
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

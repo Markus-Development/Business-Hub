@@ -98,6 +98,7 @@ export function CalendarView({
   const [calView, setCalView] = useState<CalView>("week");
   const [customStart, setCustomStart] = useState<string>(() => todayStr());
   const [customEnd, setCustomEnd] = useState<string>(() => addDaysStr(todayStr(), 6));
+  const [tokenRevoked, setTokenRevoked] = useState(false);
 
   // Refs:
   // - calendarRef: imperative handle for prev/next/today/changeView from our custom toolbar.
@@ -158,11 +159,21 @@ export function CalendarView({
         r.start,
       )}&end=${encodeURIComponent(r.end)}`;
       const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`http_${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const serverErr = (body as any)?.error ?? `http_${res.status}`;
+        throw new Error(serverErr);
+      }
       const body = (await res.json()) as { events: CalendarEvent[] };
       setEvents(body.events);
+      setTokenRevoked(false);
     } catch (err) {
-      toast.error(tRef.current("calendar.errorLoad"));
+      if (err instanceof Error && err.message === "google_invalid_grant") {
+        setTokenRevoked(true);
+        toast.error(tRef.current("calendar.errorTokenRevoked"));
+      } else {
+        toast.error(tRef.current("calendar.errorLoad"));
+      }
       // eslint-disable-next-line no-console
       console.error("calendar_events_load_failed", err);
     }
@@ -567,6 +578,18 @@ export function CalendarView({
           />
           <Button size="sm" onClick={applyCustomRange}>
             {t("calendar.customRange.apply")}
+          </Button>
+        </div>
+      )}
+
+      {tokenRevoked && (
+        <div className="mb-3 rounded-xl border border-border bg-card px-6 py-5 text-center shadow-sm">
+          <h2 className="text-base font-semibold text-foreground">
+            {t("calendar.reconnect.title")}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("calendar.reconnect.body")}</p>
+          <Button asChild className="mt-4">
+            <a href={ROUTES.api.google.connect}>{t("calendar.reconnect.cta")}</a>
           </Button>
         </div>
       )}
