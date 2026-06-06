@@ -254,7 +254,7 @@ export function TimeBlockSuggestions() {
   );
 
   return (
-    <section className="mx-auto max-w-4xl px-6 pb-10">
+    <section className="mx-auto max-w-4xl pb-10">
       <header className="flex items-baseline justify-between gap-4">
         <h2 className="text-lg font-semibold text-foreground">
           {t("digest.timeblocks.titleMulti")}
@@ -275,7 +275,7 @@ export function TimeBlockSuggestions() {
         {state === "initial" ? (
           <p className="text-sm text-muted-foreground">{t("timeblocks.loading")}</p>
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-8 py-10 text-center shadow-sm">
+          <div className="rounded-xl border border-border bg-card px-5 py-8 text-center shadow-sm sm:px-8 sm:py-10">
             <p className="text-sm text-muted-foreground">
               {t("digest.timeblocks.emptyMulti")}
             </p>
@@ -304,7 +304,7 @@ export function TimeBlockSuggestions() {
                         key={s.id}
                         className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm"
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground">
                               {s.project_name}

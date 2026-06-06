@@ -179,7 +179,7 @@ export function ProfileView({ email }: { email: string }) {
   }, [t]);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
+    <div className="mx-auto max-w-3xl py-4 sm:py-10">
       <header>
         <h1 className="text-2xl font-semibold text-foreground">{t("profile.title")}</h1>
         <p className="mt-1 font-mono text-sm text-muted-foreground">{email}</p>
@@ -228,7 +228,7 @@ export function ProfileView({ email }: { email: string }) {
                       )}
                     </div>
                     {result?.message && status === "error" ? (
-                      <pre className="mt-2 max-w-full overflow-hidden rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                      <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
                         {result.message}
                       </pre>
                     ) : null}

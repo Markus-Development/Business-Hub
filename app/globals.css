@@ -134,3 +134,15 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  /* Hide the scrollbar on horizontally-scrollable strips (mobile nav, kanban,
+     overflow tables) while keeping the element scrollable via touch/wheel. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

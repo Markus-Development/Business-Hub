@@ -56,7 +56,8 @@ export function InvoiceList({ invoices }: { invoices: ZohoInvoice[] }) {
 
   return (
     <div className="overflow-hidden rounded-lg border border-border">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] text-sm">
         <thead className="bg-muted/50">
           <tr className="text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
             <th className="px-3 py-2">{t("clients.invoices.number")}</th>
@@ -92,6 +93,7 @@ export function InvoiceList({ invoices }: { invoices: ZohoInvoice[] }) {
           ))}
         </tbody>
       </table>
+      </div>
       {invoices.length > MAX_VISIBLE ? (
         <div className="border-t border-border bg-card px-3 py-2 text-right text-xs">
           <a

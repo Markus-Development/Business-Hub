@@ -245,7 +245,7 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
   }
 
   return (
-    <div className="mx-auto max-w-screen-2xl px-6 py-6">
+    <div className="mx-auto w-full max-w-screen-2xl">
       <header className="mb-4">
         <h1 className="text-xl font-semibold text-foreground">{t("resources.title")}</h1>
       </header>
@@ -255,13 +255,13 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("resources.search")}
-          className="h-9 max-w-md flex-1 text-sm"
+          className="h-9 w-full min-w-[160px] flex-1 text-sm sm:max-w-md"
         />
         <Select
           value={areaFilter || ALL}
           onValueChange={(v) => setAreaFilter(v === ALL ? "" : v)}
         >
-          <SelectTrigger className="h-9 w-[200px] text-sm">
+          <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[200px]">
             <SelectValue placeholder={t("resources.allAreas")} />
           </SelectTrigger>
           <SelectContent>
@@ -277,7 +277,7 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
           value={typeFilter || ALL}
           onValueChange={(v) => setTypeFilter(v === ALL ? "" : v)}
         >
-          <SelectTrigger className="h-9 w-[180px] text-sm">
+          <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
             <SelectValue placeholder={t("resources.filter.allTypes")} />
           </SelectTrigger>
           <SelectContent>

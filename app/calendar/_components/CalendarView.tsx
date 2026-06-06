@@ -496,7 +496,7 @@ export function CalendarView({
   }
 
   return (
-    <div className="mx-auto min-w-[1240px] max-w-screen-2xl px-6 py-6">
+    <div className="mx-auto w-full max-w-screen-2xl">
       <header className="mb-4 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-foreground">{t("calendar.title")}</h1>
       </header>
@@ -594,7 +594,7 @@ export function CalendarView({
         </div>
       )}
 
-      <div className="bh-calendar overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="bh-calendar overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-sm sm:p-3">
         <FullCalendar
           ref={calendarRef}
           plugins={[timeGridPlugin, interactionPlugin]}

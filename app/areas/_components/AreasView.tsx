@@ -96,7 +96,7 @@ export function AreasView({
   }
 
   return (
-    <div className="mx-auto max-w-screen-2xl px-6 py-6">
+    <div className="mx-auto w-full max-w-screen-2xl">
       <header className="mb-5 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-foreground">{t("areas.title")}</h1>
       </header>

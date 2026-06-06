@@ -59,11 +59,11 @@ export function ClientDetail({
   }
 
   return (
-    <section className="space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <section className="space-y-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
       {/* Header */}
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h2 className="truncate text-2xl font-semibold text-foreground">{client.name}</h2>
+          <h2 className="break-words text-xl font-semibold text-foreground sm:truncate sm:text-2xl">{client.name}</h2>
           {client.person ? (
             <p className="mt-1 text-sm text-foreground">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -76,7 +76,7 @@ export function ClientDetail({
             <p className="mt-1 text-sm text-muted-foreground">{client.email}</p>
           ) : null}
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {client.dashboardLink ? (
             <Button variant="outline" size="sm" asChild>
               <a href={client.dashboardLink} target="_blank" rel="noreferrer">
@@ -101,7 +101,7 @@ export function ClientDetail({
         <h3 className="mb-3 text-sm font-semibold text-foreground">
           {t("clients.financial.title")}
         </h3>
-        <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Stat
             label={t("clients.financial.lifetime")}
             value={
@@ -262,7 +262,7 @@ function MetadataGrid({
   );
 
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border bg-background px-5 py-4">
+    <div className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-lg border border-border bg-background px-4 py-4 sm:grid-cols-2 sm:px-5">
       <IndustryField client={client} onSave={(v) => patchField("Industry", v, { industry: v })} />
       <NumberField
         label={t("clients.metadata.employees")}

@@ -503,6 +503,7 @@ export const translations = {
   "clients.health.amber": { de: "Offen", en: "Outstanding" },
   "clients.health.red": { de: "Überfällig", en: "Overdue" },
 
+  "clients.detail.back": { de: "Zurück zur Liste", en: "Back to list" },
   "clients.detail.openNotion": { de: "In Notion öffnen", en: "Open in Notion" },
   "clients.detail.openDashboard": { de: "Dashboard öffnen", en: "Open dashboard" },
   "clients.detail.notLinked": {

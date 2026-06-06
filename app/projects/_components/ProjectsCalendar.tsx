@@ -67,7 +67,7 @@ export function ProjectsCalendar({ items, onOpenProject, onUpdate }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}

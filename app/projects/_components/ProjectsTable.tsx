@@ -251,7 +251,112 @@ export function ProjectsTable({
   }, [table, groupByDepartment, t, sorting]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <>
+      {/* Mobile: stacked card layout (label/value pairs) — no horizontal scroll. */}
+      <div className="space-y-3 md:hidden">
+        {rowEntries.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground shadow-sm">
+            {t("projects.empty")}
+          </div>
+        ) : (
+          rowEntries.map((entry) =>
+            entry.kind === "header" ? (
+              <h3
+                key={`mgroup-${entry.department}`}
+                className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {entry.department}
+              </h3>
+            ) : (
+              <div
+                key={`m-${entry.row.id}`}
+                className="rounded-xl border border-border bg-card p-3 shadow-sm"
+              >
+                <div className="mb-2 flex items-start gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onOpenProject(entry.row.original.id)}
+                    className={cn(
+                      "min-w-0 flex-1 break-words text-left text-sm font-semibold",
+                      entry.row.original.name
+                        ? "text-foreground"
+                        : "text-muted-foreground/70",
+                    )}
+                  >
+                    {entry.row.original.name || t("projects.cell.addName")}
+                  </button>
+                  <a
+                    href={entry.row.original.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t("projects.drawer.openInNotion")}
+                    className="shrink-0 rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <ExternalLink className="size-3.5" aria-hidden />
+                  </a>
+                </div>
+                <dl className="space-y-1.5">
+                  <CardRow label={t("projects.col.status")}>
+                    <OptionBadgeSelect
+                      value={entry.row.original.status}
+                      options={statusBadgeOptions}
+                      onChange={(v) => onUpdate(entry.row.original.id, "Status", v)}
+                      placeholder="—"
+                      widthClass="w-full"
+                    />
+                  </CardRow>
+                  <CardRow label={t("projects.col.department")}>
+                    <OptionBadgeSelect
+                      value={entry.row.original.department}
+                      options={departmentBadgeOptions}
+                      onChange={(v) => onUpdate(entry.row.original.id, "Department", v)}
+                      placeholder={t("projects.cell.noDepartment")}
+                      widthClass="w-full"
+                    />
+                  </CardRow>
+                  <CardRow label={t("projects.col.priority")}>
+                    <Select
+                      value={entry.row.original.priority ?? undefined}
+                      onValueChange={(v) =>
+                        onUpdate(entry.row.original.id, "Priority", v)
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-full font-sans text-sm">
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRIORITIES.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {t(`priority.${p}` as const)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardRow>
+                  <CardRow label={t("projects.col.dueDate")}>
+                    <DueDateCell
+                      value={entry.row.original.dueDate}
+                      onSave={(v) => onUpdate(entry.row.original.id, "Due Date", v)}
+                      dateFormatter={dateFormatter}
+                    />
+                  </CardRow>
+                  <CardRow label={t("projects.col.nextAction")}>
+                    <NextActionCell
+                      value={entry.row.original.nextAction}
+                      onSave={(v) =>
+                        onUpdate(entry.row.original.id, "Next Action", v)
+                      }
+                    />
+                  </CardRow>
+                </dl>
+              </div>
+            ),
+          )
+        )}
+      </div>
+
+      {/* Desktop: table layout. */}
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm md:block">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-muted/40">
           {table.getHeaderGroups().map((group) => (
@@ -328,6 +433,16 @@ export function ProjectsTable({
           )}
         </tbody>
       </table>
+      </div>
+    </>
+  );
+}
+
+function CardRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <dt className="w-24 shrink-0 text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 flex-1">{children}</dd>
     </div>
   );
 }

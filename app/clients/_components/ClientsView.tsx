@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
@@ -25,6 +26,11 @@ export function ClientsView() {
   const [locale] = useLocale();
   const [clients, setClients] = useState<MergedClient[] | null>(null);
   const [selectedZohoId, setSelectedZohoId] = useState<string | null>(null);
+  // Mobile drill-down: 'list' shows the master list, 'detail' shows the selected
+  // client. Ignored at >= md, where both panels render side-by-side. The initial
+  // auto-select of the first client does NOT flip this to 'detail', so mobile
+  // opens on the list.
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [sort, setSort] = useState<SortKey>("overdue");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, DetailCacheEntry>>({});
@@ -186,13 +192,13 @@ export function ClientsView() {
     : null;
 
   return (
-    <div className="mx-auto min-w-[1240px] max-w-screen-2xl px-6 py-6">
+    <div className="mx-auto w-full max-w-screen-2xl">
       <header className="mb-4 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-foreground">{t("clients.title")}</h1>
       </header>
 
       {/* Summary bar */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
         <SummaryStat label={t("clients.summary.total")} value={String(summary.total)} />
         <SummaryStat
           label={t("clients.summary.outstanding")}
@@ -205,25 +211,42 @@ export function ClientsView() {
         />
       </div>
 
-      <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4">
-        <ClientList
-          clients={sortedClients}
-          selectedZohoId={selectedZohoId}
-          onSelect={setSelectedZohoId}
-          sort={sort}
-          onSortChange={setSort}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          statusOptions={statusOptions}
-          details={details}
-        />
-        <ClientDetail
-          client={selectedClient}
-          detail={selectedDetailEntry?.detail ?? null}
-          loading={selectedDetailEntry?.loading ?? false}
-          onRefresh={refreshSelectedDetail}
-          onPatchClient={patchClientInPlace}
-        />
+      <div className="md:grid md:grid-cols-[320px_minmax(0,1fr)] md:gap-4">
+        {/* Master list — hidden on mobile while a client detail is open. */}
+        <div className={mobileView === "detail" ? "hidden md:block" : "block"}>
+          <ClientList
+            clients={sortedClients}
+            selectedZohoId={selectedZohoId}
+            onSelect={(id) => {
+              setSelectedZohoId(id);
+              setMobileView("detail");
+            }}
+            sort={sort}
+            onSortChange={setSort}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statusOptions={statusOptions}
+            details={details}
+          />
+        </div>
+        {/* Detail — hidden on mobile while the list is shown. */}
+        <div className={mobileView === "list" ? "hidden md:block" : "block"}>
+          <button
+            type="button"
+            onClick={() => setMobileView("list")}
+            className="mb-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted md:hidden"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+            {t("clients.detail.back")}
+          </button>
+          <ClientDetail
+            client={selectedClient}
+            detail={selectedDetailEntry?.detail ?? null}
+            loading={selectedDetailEntry?.loading ?? false}
+            onRefresh={refreshSelectedDetail}
+            onPatchClient={patchClientInPlace}
+          />
+        </div>
       </div>
     </div>
   );
@@ -239,15 +262,15 @@ function SummaryStat({
   tone?: "neutral" | "danger";
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-xl border border-border bg-card px-3 py-3 shadow-sm sm:px-5 sm:py-4">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
         {label}
       </p>
       <p
         className={
           tone === "danger"
-            ? "mt-1 font-mono text-2xl font-semibold text-destructive"
-            : "mt-1 font-mono text-2xl font-semibold text-foreground"
+            ? "mt-1 break-words font-mono text-base font-semibold text-destructive sm:text-2xl"
+            : "mt-1 break-words font-mono text-base font-semibold text-foreground sm:text-2xl"
         }
       >
         {value}

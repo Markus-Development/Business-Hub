@@ -234,7 +234,7 @@ export function SettingsSection() {
             descriptionKey="settings.tz.description"
             t={t}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 list="bh-tz-list"
                 value={zoneInput}
@@ -246,7 +246,7 @@ export function SettingsSection() {
                   }
                 }}
                 placeholder={t("settings.tz.placeholder")}
-                className="w-72 font-mono"
+                className="w-full min-w-0 flex-1 font-mono sm:w-72 sm:flex-none"
               />
               <datalist id="bh-tz-list">
                 {COMMON_TIMEZONES.map((z) => (

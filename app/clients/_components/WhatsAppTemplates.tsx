@@ -90,7 +90,7 @@ export function WhatsAppTemplates({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t(taskLabelKey(name))}
             </p>
-            <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground">{text}</p>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">{text}</p>
             <div className="mt-3 flex gap-2">
               <Button variant="outline" size="sm" onClick={() => copy(text)}>
                 <Copy className="size-3.5" />

@@ -33,7 +33,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <LocaleProvider>
           <TopNav />
-          <main className="flex-1 mx-auto w-full min-w-[1280px] max-w-screen-2xl px-6 py-6">
+          <main className="flex-1 mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 sm:py-6">
             {children}
           </main>
           <Toaster richColors closeButton position="top-right" />

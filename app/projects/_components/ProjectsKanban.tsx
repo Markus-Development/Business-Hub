@@ -68,7 +68,7 @@ export function ProjectsKanban({ items, onUpdate, onOpenProject }: Props) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 no-scrollbar md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0">
         {STATUSES.map((s) => (
           <KanbanColumn
             key={s}
@@ -111,7 +111,7 @@ function KanbanColumn({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex w-[85vw] shrink-0 snap-start flex-col gap-2 md:w-auto md:min-w-0 md:shrink">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-semibold text-foreground">{label}</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">

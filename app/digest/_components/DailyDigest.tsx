@@ -116,7 +116,7 @@ export function DailyDigest() {
   }, [payload, justGenerated, locale, t]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
+    <div className="mx-auto max-w-4xl py-4 sm:py-10">
       <header className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">{t("digest.title")}</h1>
@@ -140,7 +140,7 @@ export function DailyDigest() {
         {state === "initial" ? (
           <p className="text-sm text-muted-foreground">{t("digest.loading")}</p>
         ) : state === "empty" ? (
-          <div className="rounded-xl border border-border bg-card px-8 py-10 text-center shadow-sm">
+          <div className="rounded-xl border border-border bg-card px-5 py-8 text-center shadow-sm sm:px-8 sm:py-10">
             <p className="text-sm text-muted-foreground">{t("digest.emptyHint")}</p>
             <Button
               className="mt-5"

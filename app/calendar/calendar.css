@@ -167,3 +167,33 @@
 .bh-calendar .fc-daygrid-day.fc-day-today {
   background: var(--fc-today-bg-color);
 }
+
+/* Mobile: tighten chrome so a 7-day week stays legible in a phone viewport.
+   FullCalendar fits all columns to the container width (no page overflow); these
+   rules just shrink labels/padding so the squeezed columns remain readable. */
+@media (max-width: 640px) {
+  .bh-calendar .fc-col-header-cell {
+    padding: 4px 1px;
+  }
+  .bh-calendar .fc-col-header-cell .fc-col-header-cell-cushion {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+  .bh-calendar .fc-timegrid-slot-label-cushion {
+    font-size: 10px;
+    padding-right: 2px;
+  }
+  .bh-calendar .fc-timegrid-event,
+  .bh-calendar .fc-daygrid-event,
+  .bh-calendar .fc-event-title,
+  .bh-calendar .fc-event-time {
+    font-size: 10px;
+  }
+  .bh-calendar .fc-timegrid-event {
+    padding: 1px 2px;
+  }
+  .bh-calendar .fc-daygrid-day-number {
+    font-size: 11px;
+    padding: 2px;
+  }
+}

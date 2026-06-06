@@ -52,14 +52,16 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/65">
-      <div className="mx-auto flex h-14 min-w-[1280px] max-w-screen-2xl items-center gap-6 px-6">
+      <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0 sm:px-6">
         <Link
           href={ROUTES.pages.projects}
-          className="text-base font-semibold tracking-tight text-foreground"
+          className="shrink-0 text-base font-semibold tracking-tight text-foreground"
         >
           {t("app.title")}
         </Link>
-        <nav className="flex flex-1 items-center justify-center gap-1">
+        {/* Tabs: wraps to its own full-width, horizontally-scrollable row on mobile;
+            centered inline strip on >= sm. */}
+        <nav className="order-3 -mx-4 flex w-full items-center gap-1 overflow-x-auto px-4 no-scrollbar sm:order-2 sm:mx-0 sm:w-auto sm:flex-1 sm:justify-center sm:px-0">
           {TABS.map((tab) => {
             const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
             return (
@@ -67,7 +69,7 @@ export function TopNav() {
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -78,7 +80,7 @@ export function TopNav() {
             );
           })}
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="order-2 ml-auto flex items-center gap-2 sm:order-3 sm:ml-0 sm:gap-3">
           <Link
             href={ROUTES.pages.capture}
             className={cn(

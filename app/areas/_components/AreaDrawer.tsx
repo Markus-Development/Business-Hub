@@ -200,7 +200,7 @@ function MetaRow({
   children: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] items-start gap-3 py-1.5">
+    <div className="grid grid-cols-1 gap-1 py-1.5 sm:grid-cols-[160px_1fr] sm:items-start sm:gap-3">
       <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
         <span className="text-muted-foreground/70">{icon}</span>
         <span>{label}</span>

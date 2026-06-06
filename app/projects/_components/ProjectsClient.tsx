@@ -191,7 +191,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
             value={statusFilter || ALL}
             onValueChange={(v) => setStatusFilter(v === ALL ? "" : v)}
           >
-            <SelectTrigger className="h-9 w-[180px] text-sm">
+            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
               <SelectValue placeholder={t("projects.filter.allStatuses")} />
             </SelectTrigger>
             <SelectContent>
@@ -207,7 +207,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
             value={departmentFilter || ALL}
             onValueChange={(v) => setDepartmentFilter(v === ALL ? "" : v)}
           >
-            <SelectTrigger className="h-9 w-[180px] text-sm">
+            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
               <SelectValue placeholder={t("projects.filter.allDepartments")} />
             </SelectTrigger>
             <SelectContent>
@@ -223,7 +223,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
             value={priorityFilter || ALL}
             onValueChange={(v) => setPriorityFilter(v === ALL ? "" : v)}
           >
-            <SelectTrigger className="h-9 w-[180px] text-sm">
+            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
               <SelectValue placeholder={t("projects.filter.allPriorities")} />
             </SelectTrigger>
             <SelectContent>
