@@ -30,6 +30,16 @@ const STATUS_OPTIONS: { value: string; labelKey: TranslationKey }[] = [
   { value: "Paused", labelKey: "areas.status.paused" },
 ];
 
+// Health-metric actual-status options. The value is the canonical German string
+// that flows into the body's 📊 line (the draft body is German); labels are
+// localized.
+const HEALTH_OPTIONS: { value: string; labelKey: TranslationKey }[] = [
+  { value: "Auf Kurs", labelKey: "areasReview.health.onTrack" },
+  { value: "Leicht dahinter", labelKey: "areasReview.health.slightlyBehind" },
+  { value: "Deutlich dahinter", labelKey: "areasReview.health.wellBehind" },
+  { value: "Kein Wert / N/A", labelKey: "areasReview.health.na" },
+];
+
 type DraftPayload = {
   newVersionName: string;
   previousVersionUrl: string | null;
@@ -66,7 +76,20 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
         const res = await fetch(ROUTES.api.areas.reviewDiff, { method: "POST" });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!cancelled) setAreas(data.areas as AreaReviewState[]);
+        if (!cancelled) {
+          const loaded = data.areas as AreaReviewState[];
+          setAreas(loaded);
+          // Pre-fill the milestone answer (and due date) with each area's
+          // current value so the user can confirm or edit it in place.
+          const seeded: Record<string, Record<string, string>> = {};
+          for (const a of loaded) {
+            const seed: Record<string, string> = {};
+            if (a.area.currentMilestone) seed.milestone = a.area.currentMilestone;
+            if (a.area.milestoneDueDate) seed.milestone_due = a.area.milestoneDueDate.slice(0, 10);
+            if (Object.keys(seed).length) seeded[a.area.id] = seed;
+          }
+          setAnswers(seeded);
+        }
       } catch {
         if (!cancelled) setError(true);
       } finally {
@@ -236,6 +259,7 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
                   key={q.id}
                   q={q}
                   t={t}
+                  helper={questionHelper(q.id, current.area, t)}
                   value={areaAnswers[q.id] ?? ""}
                   onChange={(v) => setAnswer(current.area.id, q.id, v)}
                 />
@@ -273,7 +297,7 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
 
 function Shell({ t, children }: { t: T; children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1080px] px-6 py-8">
       <header className="mb-5">
         <Link
           href={ROUTES.pages.areas}
@@ -316,8 +340,13 @@ function DiffColumn({
       ) : (
         <ul className="space-y-1">
           {items.map((p) => (
-            <li key={p.id} className="truncate text-xs text-muted-foreground">
-              <a href={p.url} target="_blank" rel="noreferrer" className="hover:text-foreground">
+            <li key={p.id} className="text-xs text-muted-foreground">
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noreferrer"
+                className="break-words hover:text-foreground"
+              >
                 {p.name}
               </a>
             </li>
@@ -328,21 +357,50 @@ function DiffColumn({
   );
 }
 
+// Builds the muted helper line shown above a question field. Milestone shows the
+// area's current milestone (+ due date); health shows the metric definition so
+// the user knows what is being measured.
+function questionHelper(
+  qid: string,
+  area: AreaReviewState["area"],
+  t: T,
+): string | undefined {
+  if (qid === "milestone") {
+    if (!area.currentMilestone) return undefined;
+    let line = `${t("areasReview.currentLabel")}: ${area.currentMilestone}`;
+    if (area.milestoneDueDate) {
+      line += ` (${t("areasReview.dueLabel")} ${area.milestoneDueDate.slice(0, 10)})`;
+    }
+    return line;
+  }
+  if (qid === "health") {
+    return area.healthMetric
+      ? `${t("areasReview.measuresLabel")}: ${area.healthMetric}`
+      : t("areasReview.noHealthMetric");
+  }
+  return undefined;
+}
+
 function QuestionField({
   q,
   t,
   value,
   onChange,
+  helper,
 }: {
   q: ReviewQuestion;
   t: T;
   value: string;
   onChange: (v: string) => void;
+  helper?: string;
 }) {
   const label = t(q.labelKey);
   return (
     <label className="block">
       <span className="mb-1 block text-sm text-foreground">{label}</span>
+      {helper && (
+        <span className="mb-1.5 block text-xs text-muted-foreground">{helper}</span>
+      )}
       {q.type === "status" ? (
         <Select value={value || undefined} onValueChange={onChange}>
           <SelectTrigger className="h-9 w-full text-sm">
@@ -352,6 +410,19 @@ function QuestionField({
             {STATUS_OPTIONS.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {t(s.labelKey)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : q.type === "health" ? (
+        <Select value={value || undefined} onValueChange={onChange}>
+          <SelectTrigger className="h-9 w-full text-sm">
+            <SelectValue placeholder={t("areasReview.healthPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {HEALTH_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {t(o.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>

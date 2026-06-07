@@ -16,7 +16,16 @@ export type ReviewProjectRef = {
 
 export type AreaReviewState = {
   base: string;
-  area: { id: string; url: string; name: string; status: string | null; created: string };
+  area: {
+    id: string;
+    url: string;
+    name: string;
+    status: string | null;
+    created: string;
+    currentMilestone: string | null;
+    milestoneDueDate: string | null;
+    healthMetric: string | null;
+  };
   doneProjects: ReviewProjectRef[];
   newProjects: ReviewProjectRef[];
   ongoingProjects: ReviewProjectRef[];
@@ -75,7 +84,16 @@ export async function POST() {
 
       return {
         base,
-        area: { id: a.id, url: a.url, name: a.name, status: a.status, created: a.created },
+        area: {
+          id: a.id,
+          url: a.url,
+          name: a.name,
+          status: a.status,
+          created: a.created,
+          currentMilestone: a.currentMilestone,
+          milestoneDueDate: a.milestoneDueDate,
+          healthMetric: a.healthMetric,
+        },
         doneProjects,
         newProjects,
         ongoingProjects,

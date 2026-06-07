@@ -6,7 +6,7 @@
 
 import type { TranslationKey } from "@/constants/translations";
 
-export type ReviewQuestionType = "text" | "textarea" | "status" | "date";
+export type ReviewQuestionType = "text" | "textarea" | "status" | "date" | "health";
 
 export type ReviewQuestion = {
   // Stable id — used as the answers-map key and threaded into the draft prompt.
@@ -24,7 +24,7 @@ export const UNIVERSAL_QUESTIONS: ReviewQuestion[] = [
   { id: "status", type: "status", labelKey: "areasReview.q.status" },
   { id: "milestone", type: "text", labelKey: "areasReview.q.milestone" },
   { id: "milestone_due", type: "date", labelKey: "areasReview.q.milestoneDue" },
-  { id: "health", type: "text", labelKey: "areasReview.q.health" },
+  { id: "health", type: "health", labelKey: "areasReview.q.health" },
 ];
 
 // Two individual questions per area. Keys must match the normalised base names
@@ -47,7 +47,6 @@ export const AREA_QUESTIONS: Record<string, ReviewQuestion[]> = {
     { id: "fulfillment_atRisk", type: "text", labelKey: "areasReview.q.fulfillment.atRisk" },
   ],
   Accounting: [
-    { id: "accounting_booksCurrent", type: "text", labelKey: "areasReview.q.accounting.booksCurrent" },
     { id: "accounting_ownBooks", type: "text", labelKey: "areasReview.q.accounting.ownBooks" },
   ],
   Operations: [

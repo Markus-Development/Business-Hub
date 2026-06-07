@@ -19,6 +19,9 @@ type Body = {
     status?: string | null;
     created?: string;
     base?: string;
+    currentMilestone?: string | null;
+    milestoneDueDate?: string | null;
+    healthMetric?: string | null;
   };
   diff?: {
     doneProjects?: ProjectRef[];
@@ -81,7 +84,8 @@ Der "body" hat exakt diese Sektionen in dieser Reihenfolge:
 Regeln:
 - Done-Projekte als datierte Bullets in Accomplishments rollen, Format: "- ✅ <Projektname> (<YYYY-MM-DD>)". Nutze das pro Projekt angegebene Datum; erfinde KEINE Daten.
 - Done-Projekte NICHT in Connected Projects auflisten. In Connected Projects nur laufende und neue Projekte als "- <Name>".
-- Den Health-Metric-Ist-Wert als eigene Zeile mit Prefix "📊 " in Notes aufnehmen.
+- Wenn unter HEALTH-METRIC eine fertige 📊-Zeile vorgegeben ist, übernimm sie WORTWÖRTLICH und unverändert als eigene Zeile in ## Notes. Erfinde keine eigene Health-Zeile.
+- "healthMetric" in properties ist die DEFINITION (was gemessen wird), nicht der Ist-Status. Lass sie unverändert, wenn vorgegeben.
 - KEINE Em-Dashes (—) verwenden. Kurzer, klarer Beraterton.
 - Antworte in der Sprache der Eingabe (in der Regel Deutsch).
 - Leite Goal/Standard/Next Focus/Next Steps aus dem aktuellen Stand und den Antworten ab; erfinde keine Fakten.`;
@@ -110,6 +114,15 @@ export async function POST(req: Request) {
   const ans = answers ?? {};
   const reviewDate = new Date().toISOString().slice(0, 10);
 
+  // Health metric: the definition (what is measured) stays as the property; the
+  // dropdown selection is the actual status and is composed into the body's 📊
+  // line, format "📊 <Definition>: <Auswahl> (<Datum>)".
+  const healthDef = typeof area.healthMetric === "string" ? area.healthMetric.trim() : "";
+  const healthStatus = typeof ans.health === "string" ? ans.health.trim() : "";
+  const healthLine = healthStatus
+    ? `📊 ${healthDef || "Health Metric"}: ${healthStatus} (${reviewDate})`
+    : null;
+
   // Build a readable answers block for the prompt (label: answer).
   const questions = questionsForArea(area.base ?? area.name.replace(/ \(v\d+\)$/, "").trim());
   const answerLines = questions
@@ -125,6 +138,13 @@ export async function POST(req: Request) {
     `Aktueller Status: ${area.status ?? "—"}`,
     "",
     `REVIEW-DATUM (für undatierte Done-Projekte): ${reviewDate}`,
+    "",
+    "HEALTH-METRIC:",
+    `- Definition (was gemessen wird): ${healthDef || "—"}`,
+    `- Ist-Status (Auswahl): ${healthStatus || "—"}`,
+    healthLine
+      ? `- Übernimm diese Zeile WÖRTLICH als eigene Zeile in ## Notes: ${healthLine}`
+      : "- Keine Health-Zeile in ## Notes hinzufügen.",
     "",
     "DONE-PROJEKTE (in Accomplishments rollen, aus Connected Projects entfernen):",
     done.length
@@ -184,8 +204,11 @@ export async function POST(req: Request) {
   if (typeof ans.milestone === "string" && ans.milestone.trim()) {
     properties.currentMilestone = ans.milestone.trim();
   }
-  if (typeof ans.health === "string" && ans.health.trim()) {
-    properties.healthMetric = ans.health.trim();
+  // healthMetric is the DEFINITION — carry the existing one forward unchanged.
+  // The dropdown selection (the actual status) lives in the body's 📊 line, not
+  // in this property.
+  if (healthDef) {
+    properties.healthMetric = healthDef;
   }
   if (typeof ans.milestone_due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ans.milestone_due)) {
     properties.milestoneDueDate = ans.milestone_due;

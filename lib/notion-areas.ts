@@ -192,6 +192,10 @@ export type AreaSummary = {
   status: string | null;
   archived: boolean;
   created: string;
+  // Current values surfaced so the review wizard can show + pre-fill them.
+  currentMilestone: string | null;
+  milestoneDueDate: string | null;
+  healthMetric: string | null;
 };
 
 function titleText(prop: any): string {
@@ -201,6 +205,16 @@ function titleText(prop: any): string {
 
 function selectName(prop: any): string | null {
   return prop?.select?.name ?? null;
+}
+
+function richTextText(prop: any): string | null {
+  const parts = prop?.rich_text ?? [];
+  const text = parts.map((p: any) => p?.plain_text ?? "").join("").trim();
+  return text || null;
+}
+
+function dateStart(prop: any): string | null {
+  return prop?.date?.start ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +307,9 @@ export async function listAreas(): Promise<AreaSummary[]> {
         status: selectName(p.Status),
         archived: Boolean(p.Archived?.checkbox),
         created: page.created_time,
+        currentMilestone: richTextText(p["Current Milestone"]),
+        milestoneDueDate: dateStart(p["Milestone Due Date"]),
+        healthMetric: richTextText(p["Health Metric"]),
       });
     }
     cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;

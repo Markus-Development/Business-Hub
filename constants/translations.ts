@@ -777,6 +777,18 @@ export const translations = {
     de: "Health-Metric: aktueller Ist-Wert?",
     en: "Health metric: current actual value?",
   },
+  "areasReview.currentLabel": { de: "Aktuell", en: "Current" },
+  "areasReview.dueLabel": { de: "fällig", en: "due" },
+  "areasReview.measuresLabel": { de: "Misst", en: "Measures" },
+  "areasReview.noHealthMetric": {
+    de: "Keine Health-Metric für diese Area definiert.",
+    en: "No health metric defined for this area.",
+  },
+  "areasReview.healthPlaceholder": { de: "Ist-Status wählen", en: "Select status" },
+  "areasReview.health.onTrack": { de: "Auf Kurs", en: "On track" },
+  "areasReview.health.slightlyBehind": { de: "Leicht dahinter", en: "Slightly behind" },
+  "areasReview.health.wellBehind": { de: "Deutlich dahinter", en: "Well behind" },
+  "areasReview.health.na": { de: "Kein Wert / N/A", en: "No value / N/A" },
 
   // Per-area review questions
   "areasReview.q.content.posts": {
@@ -810,10 +822,6 @@ export const translations = {
   "areasReview.q.fulfillment.atRisk": {
     de: "Mandant At Risk oder Lieferung überfällig?",
     en: "Client at risk or delivery overdue?",
-  },
-  "areasReview.q.accounting.booksCurrent": {
-    de: "Mandanten-Bücher aktuell?",
-    en: "Client books up to date?",
   },
   "areasReview.q.accounting.ownBooks": {
     de: "Offene CSV-Imports / EasyFinance + eigene Bücher aktuell?",
