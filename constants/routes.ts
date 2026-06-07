@@ -32,6 +32,8 @@ export const ROUTES = {
     calendar: "/calendar",
     clients: "/clients",
     areas: "/areas",
+    areasManage: "/areas/manage",
+    areasReview: "/areas/review",
     resources: "/resources",
     profile: "/profile",
     capture: "/capture",
@@ -70,6 +72,16 @@ export const ROUTES = {
       blocks: areasBlocks,
       update: areasUpdate,
       focus: "/api/areas/focus",
+      // Versioning workflow (manage surface). `manage` lists ALL versions
+      // (incl. archived); `version` bumps to a new version; `archive` flags
+      // old versions Archived=true.
+      manage: "/api/areas/manage",
+      version: "/api/areas/version",
+      archive: "/api/areas/archive",
+      // Native Areas Review wizard. `reviewDiff` computes the per-area state +
+      // questions; `reviewDraft` calls Anthropic to draft the new version.
+      reviewDiff: "/api/areas/review/diff",
+      reviewDraft: "/api/areas/review/draft",
     },
     resources: {
       list: "/api/resources",

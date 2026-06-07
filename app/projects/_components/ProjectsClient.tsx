@@ -22,12 +22,15 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PRIORITIES, STATUSES } from "@/constants/priorities";
 import { DEPARTMENTS } from "@/constants/departments";
+import { PROJECT_VIEWS, DEFAULT_VIEW_KEY, type ViewKey } from "@/constants/project-views";
 import { ROUTES } from "@/constants/routes";
 import type { Project, SelectOption } from "@/lib/notion";
 
 const VIEW_STORAGE_KEY = "bh.projects.view";
+const VIEW_PRESET_STORAGE_KEY = "bh.projects.viewPreset";
 type View = "table" | "kanban" | "calendar";
 const VIEWS = ["table", "kanban", "calendar"] as const;
+const VIEW_PRESET_KEYS = PROJECT_VIEWS.map((v) => v.key) as readonly string[];
 const ALL = "__all";
 
 const FIELD_KEY: Record<UpdateField, keyof Project> = {
@@ -43,6 +46,7 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const t = useT();
   const searchParams = useSearchParams();
   const [view, setView] = useState<View>("table");
+  const [viewPreset, setViewPreset] = useState<ViewKey>(DEFAULT_VIEW_KEY);
   const [items, setItems] = useState<Project[]>(projects);
 
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -70,6 +74,10 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
       const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
       if (stored && (VIEWS as readonly string[]).includes(stored)) {
         setView(stored as View);
+      }
+      const storedPreset = window.localStorage.getItem(VIEW_PRESET_STORAGE_KEY);
+      if (storedPreset && VIEW_PRESET_KEYS.includes(storedPreset)) {
+        setViewPreset(storedPreset as ViewKey);
       }
     } catch {}
   }, []);
@@ -106,6 +114,13 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     } catch {}
   };
 
+  const changeViewPreset = (key: ViewKey) => {
+    setViewPreset(key);
+    try {
+      window.localStorage.setItem(VIEW_PRESET_STORAGE_KEY, key);
+    } catch {}
+  };
+
   const handleUpdate = async (pageId: string, field: UpdateField, value: string | null) => {
     const prev = items;
     const isStatusChange = field === "Status";
@@ -113,16 +128,14 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     // Archive DB and trashes the source page. Optimistically drop the row;
     // reconcile (restore) only if the request fails.
     const archiving = isStatusChange && value === "Archived";
-    // A non-archive status change that takes the project out of the Active-only
-    // list (Done / On Hold). The hub loads Active-only (listActiveProjects), so
-    // in Table/Calendar the row must leave immediately. In Kanban the card must
-    // stay visible and move between the Active / On Hold / Done columns instead.
-    const leavingActiveList =
-      isStatusChange && value !== "Active" && value !== "Archived" && view !== "kanban";
 
-    if (archiving || leavingActiveList) {
+    if (archiving) {
       setItems(prev.filter((p) => p.id !== pageId));
     } else {
+      // The hub loads every view-relevant status (listProjectsForViews), so a
+      // status change is an in-place edit: the derived `listItems` re-filters
+      // automatically, dropping the row from the table/calendar when its new
+      // status no longer matches the active view preset.
       const key = FIELD_KEY[field];
       setItems(prev.map((p) => (p.id === pageId ? { ...p, [key]: value } : p)));
     }
@@ -138,9 +151,6 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
       toast.success(t("projects.archivedToast"));
       return;
     }
-    // Row removed because it left the Active-only list (Done / On Hold from
-    // Table or Calendar). Close the drawer when the change came from it.
-    if (leavingActiveList && selectedProjectId === pageId) setSelectedProjectId(null);
     toast.success(t("projects.updateSuccess"));
   };
 
@@ -156,6 +166,17 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
       return true;
     });
   }, [items, statusFilter, departmentFilter, priorityFilter]);
+
+  // `listItems` narrows `filteredItems` to the active view preset's status set.
+  // Table + Calendar render this; Kanban deliberately renders `filteredItems`
+  // (the preset does not apply to Kanban — it keeps its own STATUSES columns).
+  const listItems = useMemo(() => {
+    const presetStatuses =
+      PROJECT_VIEWS.find((v) => v.key === viewPreset)?.statuses ?? [];
+    return filteredItems.filter(
+      (p) => p.status != null && (presetStatuses as readonly string[]).includes(p.status),
+    );
+  }, [filteredItems, viewPreset]);
 
   // Drawer follows live items so optimistic edits are reflected.
   const selectedProject = useMemo(
@@ -198,6 +219,24 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
             })}
           </div>
           <div className="hidden h-6 w-px bg-border md:block" aria-hidden />
+          <Select
+            value={viewPreset}
+            onValueChange={(v) => changeViewPreset(v as ViewKey)}
+          >
+            <SelectTrigger
+              aria-label={t("projects.views.label")}
+              className="h-9 w-[140px] text-sm sm:w-[180px]"
+            >
+              <SelectValue placeholder={t("projects.views.label")} />
+            </SelectTrigger>
+            <SelectContent>
+              {PROJECT_VIEWS.map((v) => (
+                <SelectItem key={v.key} value={v.key}>
+                  {t(`projects.views.${v.key}` as const)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={statusFilter || ALL}
             onValueChange={(v) => setStatusFilter(v === ALL ? "" : v)}
@@ -277,13 +316,13 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
         />
       ) : view === "calendar" ? (
         <ProjectsCalendar
-          items={filteredItems}
+          items={listItems}
           onOpenProject={openProject}
           onUpdate={handleUpdate}
         />
       ) : (
         <ProjectsTable
-          items={filteredItems}
+          items={listItems}
           onUpdate={handleUpdate}
           onOpenProject={openProject}
           statusOptions={statusOptions}

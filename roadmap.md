@@ -4,6 +4,18 @@
 > Reference this file at the start of any session involving Areas (Tab 5), the AI Digest, or strategic planning.
 > Update after each session that changes an area's status, milestone, or projects.
 
+## Brand Identity — separate source of truth
+
+Brand identity (Mission, ICP, Positioning, Voice, Client Language Bank) lives in **Notion at /06 Brand**. This roadmap owns *what* to work on per area; the Notion brand DB owns *how the brand speaks and what it stands for*.
+
+When working on Marketing, Sales, or Content (areas 3, 4, 7) — pull from Notion /06 Brand before generating any copy:
+
+- Kontext-Brief: https://www.notion.so/367dbb6acff781e69382ed94730d4bd0
+- Brand OS DB: https://www.notion.so/c2f2040f70684c6d8398abc0f57ccb63
+- Client Language Bank: https://www.notion.so/aa793b49e04e4eabbdb83ec32422c6f5
+
+**Naming convention:** EasyFinance = outward-facing brand (landing page, sales, service, software). Geldstruktur = Markus's Instagram founder handle only. Don't conflate them.
+
 ---
 
 ## How to read this file
@@ -101,7 +113,7 @@ Near-zero manual invoicing. Almost everyone on Stripe or SEPA. One monthly check
 ### 3. Marketing
 
 **Standard:**
-Reliable, profitable inflow of high-quality leads who want to become clients at €500–€1000/month. Comes through Facebook ads, Instagram organic, and instant forms — multiple funnels. At least €1k/month ad spend running profitably, producing 1–2 new clients per month. Funnels are regularly reviewed and refined.
+Reliable, profitable inflow of high-quality leads who want to become clients at €500–€1000/month. Comes through Facebook ads, Instagram organic, and instant forms — multiple funnels. At least €1k/month ad spend running profitably, producing 1–2 new clients per month. Funnels are regularly reviewed and refined. All ad headlines and funnel copy pull voice + verbatim phrases from Notion /06 Brand → Client Language Bank — no ad-hoc copy invention.
 
 **Current Milestone:**
 Funnel 1 is live and performing. Coach feedback has been implemented and show-up rate is above 50%. New ads with phone number capture are running. Focus now shifts to maintaining momentum, iterating on ad performance, and activating instant forms fully.
@@ -141,12 +153,12 @@ Four-digit monthly ad spend running profitably. 1–2 new clients per month as a
 ### 4. Sales
 
 **Standard:**
-Calendly booking fully streamlined. Clean call structure with scripts for both the analysis call and the sales call, stored in Notion. KPIs tracked. Markus knows his closing rate at all times and is actively improving it.
+Calendly booking fully streamlined. Clean call structure with scripts for both the analysis call and the sales call, stored in Notion. KPIs tracked. Markus knows his closing rate at all times and is actively improving it. Scripts pull Positioning + ICP + Pain/Desire from Notion /06 Brand → Brand OS DB — no ad-hoc invention.
 
 **Current Milestone:**
-Not yet defined. Suggested sequence (approved or adjust):
+Suggested sequence (approved or adjust):
 
-1. **Scripts documented** — Analysis call + sales call scripts written and stored in Notion. One living document, refined after every call.
+1. **Scripts documented** — *partially done (2026-05-22)*. Sales-Call-Framework lives in Brand OS as the 13th element: https://www.notion.so/368dbb6acff781f486f5d43cdb7244df. Dokumentiert 2-Call-Architektur, wörtliche Eröffnungs-Frames, 4-Schritt-Auswertung, Pricing-Matrix Standard vs. Plus, Einwand-Routinen. Verbleibt: Verfeinerung nach Live-Calls + KPI-Logging direkt im Framework eingehängt.
 2. **KPI baseline established** — Track: calls booked, calls held, proposals made, closed, closing rate, average deal value.
 3. **2 calls/week rhythm** — Sustainable starting cadence fed by Marketing funnel.
 4. **Closing rate review** — After 10+ calls, identify drop-off points and refine scripts.
@@ -272,9 +284,9 @@ Active Instagram with regular posts on a consistent schedule. Incoming DMs answe
 None active — area is fully and intentionally paused. Marketing funnel and Development must be stable before this activates. This is the last area to reactivate.
 
 **Next Steps (when unpaused):**
-- Mine customer audience language — how clients actually talk about their problems (raw material for the AI system).
+- ~~Mine customer audience language~~ ✅ **Done 2026-05-20** — MINE VOC Research completed. 49 verbatim quotes + 10 pain points + 8 desires + 7 competitor profiles. Raw material now lives in Notion /06 Brand → Client Language Bank (28 curated quotes) + Brand Voice row.
 - Build inspiration and idea library in Notion (a folder Markus drops raw ideas into).
-- Build the AI content generation system: customer voice input → AI drafts posts → Markus reviews → publishes.
+- Build the AI content generation system: customer voice input → AI drafts posts → Markus reviews → publishes. Voice source = Notion Brand Voice row; phrases source = Client Language Bank.
 - Activate Instagram DM automation for incoming messages.
 
 **Next Focus (AI suggestion after milestone):**
@@ -417,6 +429,16 @@ These are instructions for how the AI Digest should treat each area:
 | 2026-05-20 | 13 projects marked Done. Marketing: coach feedback implemented (show-up rate >50%), new ads with phone number capture launched — milestone updated to active iteration phase. Development: Areas populated with roadmap, client Notion list populated, Business OS Workshop completed. Operations: weekly tracking (10.05–17.05) done, establishment card renewed. Personal: Bumble weekly date habit established, Virgin SIM obtained for Mo, Mo referred to 3S Money, Dubai massage sessions booked, insurance claim registered. Roadmap updated accordingly. |
 | 2026-05-20 | 13 Done projects archived. TEST project (Phase 4) archived as Completed. All accomplishments already reflected in area Accomplishments sections. No milestone or next-step changes required — current milestones and next steps remain valid. |
 | 2026-05-20 | 14 Done projects archived. All 13 previously logged projects re-confirmed as Completed, plus TEST — Roadmap project B (Phase 4, re-verify) archived as Completed. No area milestones or next steps required changes — all accomplishments already reflected in area Accomplishments sections. |
+| 2026-05-21 | **Brand OS work — Rounds 1–3 complete.** MINE VOC Research (2026-05-20) + Markus founder-interview (2026-05-21) destilled into Notion /06 Brand: 12 Brand OS elements at Status=Working in EasyFinance branding (Mission, Vision, Werte & Prinzipien, Origin Story, ICP, Pain, Desire, Triggers, Positioning Statement v3 with "Schicht davor", Unique Mechanism, Konkurrenz-Abgrenzung, Brand Voice). 28 Client Language Bank entries seeded. Kontext-Brief at https://www.notion.so/367dbb6acff781e69382ed94730d4bd0. Naming convention added to CLAUDE.md (new versions get `(v2)`/`(v3)` suffix until old is deleted). |
+| 2026-05-22 | Brand OS old/duplicate entries cleaned up. 7 placeholder skeleton entries from 2026-05-17 + 5 superseded versions + 1 old Kontext-Brief flagged for deletion. Old Kontext-Brief (367dbb6a-cff7-81e6-bb42-fc8fd8e89c4d) still pending deletion as of session close. Open follow-ups documented in CLAUDE.md "Brand Identity Reference" section: client success quote, ICP/Pain/Desire/Triggers personalization, Sales-Call-Framework as new artifact. |
+| 2026-05-22 | **Skeleton-Cleanup verified.** All 5 skeleton entries from 2026-05-17 (Objections, Values, Competitive Landscape, Tone & Style Guide, Client Language Bank (link)) confirmed deleted via direct Notion page-fetch (search index was returning stale entries). Brand OS DB now contains only the 12 current Working rows + the new Sales-Call-Framework (13). |
+| 2026-05-22 | **Sales-Call-Framework angelegt** als 13. Brand-OS-Element (Status=Working, Category=Positioning): https://www.notion.so/368dbb6acff781f486f5d43cdb7244df. Dokumentiert 2-Call-Architektur (30 Min Analyse-Call + 60–90 Min Auswertungs-Call, Abstand 2–4 Tage), wörtliche Eröffnungs-Frames für beide Calls, 4-Schritt-Auswertung (Datenbasis → Rückblick + Quick Wins → 12-Monats-Forecast → Schlachtplan mit Goal-Backsolving + 2-Hebel-Modell), Pricing-Matrix Setup (1K/2K/3K nach Klient-Umsatz) + Retainer Standard vs. Plus (Smoke-Angebot-Logik), kollegiale Einwandbehandlung mit wörtlichen Routinen, Anti-Push-Linie + echte-Knappheit-Regel, Connector-Strategie als emergent (nicht im Sales-Pitch — Open Question §8). Schließt CLAUDE.md-Follow-up "Optional B — Sales-Call-Framework" ab. CLAUDE.md "All 12 elements" → "All 13 elements" und Optional-B-Eintrag entfernen via Claude-Code-Prompt. |
+| 2026-05-22 | **Clients-DB erweitert.** Zwei neue Properties hinzugefügt: `Tier` (Select: Standard/Plus/Essential) + `Acquisition Source` (Select: Empfehlung/Facebook Ads/Instagram organic/Networking (Dubai)/Sales Coach (Sadin)/Other). Alle 19 Klienten-Einträge gepflegt. Aggregation (ohne Fesma, das ist Side-Income kein Brand-ICP-Klient): 9 ICP-relevante Klienten (7 Active + 2 Paused), 89% via Empfehlung, 11% Networking, 0% Paid Funnel. Bestätigt MINE-VOC-ICP-Profil + ergänzt Real-Estate als reguläre Zielgruppe + öffnet MA-Cap auf 0–50. Notion-MCP hat keinen `update_data_source` Tool — Schema-Änderungen müssen manuell im Notion-UI gemacht werden. |
+| 2026-05-22 | **Call Notes DB Schema-Fixes** (Voraussetzung für Call Miner). `NOTION_CALL_NOTES_DB_ID` in `.env.local` korrigiert von `66dbb6acff78075b19e000c282a72b2` (war 31-char malformed View-ID) auf korrekte Database-ID `366dbb6acff78083aba0d8734ac24890`. Zwei Notion-Properties umbenannt: `Clients` → `Client` (relation, singular) und `Multi-select` → `Objections Tags` (multi_select) — beide Default-Platzhalter, jetzt mit Code-Erwartungen in `lib/notion.ts createCallNote()` synchron. Dev-Server-Neustart nach Env-Fix nötig. |
+| 2026-05-22 | **Call Miner Skill — erster Produktiv-Lauf.** Loom-Sales-Call mit Massimo (Tattoo-Coaching, 7-stellig, Schweiz, FB-Ads-Lead) gemined: Call-Notes-Page erstellt unter https://www.notion.so/Sales-Massimo-Russo-2026-05-22-368dbb6acff7814e8de4f0cac3d8d61e. Alle 6 Deliverables im Body (Anrufzusammenfassung, Recap-Mail, Case Study Seed, 3 Einwände mit Tags Timing/Trust/Other, 3 LinkedIn-Posts, IG-Caption). Outcome: Follow-up am 26.05.2026 8:00. Workflow-Lehre: Cowork-Sandbox kann localhost auf Markus' Mac nicht erreichen — Chrome MCP (browser auf Mac) ist die Brücke für POSTs an `/api/calls/create`. Tab muss auf localhost:3000 navigiert sein (same-origin), sonst CORS-Block. |
+| 2026-05-22 | **Client Language Bank: 28 → 36 Einträge.** Erste 8 First-Party-Verbatims (alle vorherigen 28 waren MINE-VOC-destilliert aus Wettbewerber-Reviews) aus Massimo-Sales-Call: 6 Pain (`Alter wo ist mein Geld hin?` / `Plötzlich kam die Steuerrechnung` / `Ich habe gar keinen Bock mehr` / `Ich bin ganz schlecht mit Zahlen` / `Ich lebe womöglich über meinen Ausgaben hinaus` / `Ich habe gar keine Zeit, weiß nicht wo anfangen`), 1 Trigger Event (`Der Algorithmus hat mich gefunden` — erste FB-Ads-Trigger-Bestätigung), 1 Objection (`12k, 9k im Monat... ist unmenschlich` — erste Objection-Slot-Befüllung überhaupt). Tags konsistent mit MINE-VOC-Schema. |
+| 2026-05-22 | **ICP (v2) committed.** Ersetzt MINE-VOC-basierte ICP-v1 durch erste Brand-OS-Zeile mit echtem Datenbeleg: 9-Klienten-Aggregation + Avatar Daniel = realer Daniel (Juni 2024) + Massimo-Verbatim-Belege im psychografischen Profil. URL https://www.notion.so/ICP-Idealer-Kunde-368dbb6acff781d990d3dbba934876a4. Änderungen vs v1: MA-Cap 5 → 50 (Praxis-Klient mit 20 MA als Beleg), Real Estate als reguläre Branche aufgenommen, Closer mit Caveat (10K+/Monat-Filter), Acquisition-Realität explizit (89% Empfehlung als historische Realität, Marketing als neue Schicht), Tier-Realität dokumentiert (Standard = Brot, Essential = Reserve, Plus = hypothetisch), Mandats-Ende als Pause-statt-Cut-Policy, Sonderpreise als bewusste Praxis (Daniel 350€, Fabian-Marketing-Agency 250€ Doppelpack mit Simon). v1-Page gelöscht von Markus, (v2)-Suffix manuell entfernt. Schließt CLAUDE.md-Follow-up "Optional A — ICP-Personalisierung" teilweise ab (ICP done; Pain/Trigger partial via 8 Massimo-Verbatims; Desire bleibt offen). |
+| 2026-05-29 | **Areas-Sync (6 areas updated).** Notion Areas DB (v2) pages created for Marketing, Sales, Development, Operations, Content, Personal — reflecting all Done projects and new developments since 2026-05-22. **Marketing:** status → Active, milestone updated to live funnel at ~8€/lead; accomplished: WA-Flow, Tracker fixes, Telegram bot, Twilio-Nummer, 3 Loom testimonials mined + Desire (v2). **Sales:** milestone updated to reflect Sales-Call-Framework documented, Massimo Auswertungs-Call held 2026-05-26 (offer: 2k+1.5k/month), Follow-up alte Analysecalls done; new projects from 2026-05-28 coaching: Twilio setup, Setting-Script, Lead-Pipeline. **Development:** milestone updated to reflect all 6 BH tabs built, now in launch-readiness phase. **Operations:** PARA migration largely complete; new action items from coaching: Lead-Pipeline, Call-Zeitfenster, SOPs als Video. **Content:** accomplishments updated (Desire v2 done); still Paused. **Personal:** status → Active; travel thriving (Schweiz done, DE now, Barcelona 1 month, Italy planned, Greece+Retreat September); gym paused temporarily (resumes June 1); dating: deliberate pause until July (back in Dubai); dancing + pool active; card magic/Spanish/Japanese neglected — nudge due. Deletion list for 6 old area pages: see below. |
 
 ---
 

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { listActiveProjects } from "@/lib/notion";
+import { listProjectsForViews } from "@/lib/notion";
 import { ProjectsClient } from "./_components/ProjectsClient";
 
 // Server component fetch: data is available on first paint, no client-side loading state needed.
@@ -7,7 +7,7 @@ import { ProjectsClient } from "./_components/ProjectsClient";
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const projects = await listActiveProjects();
+  const projects = await listProjectsForViews();
   // Suspense boundary is required by Next.js when a descendant client component
   // calls useSearchParams — ProjectsClient reads `?area=` to pre-seed its filter.
   return (

@@ -6,6 +6,7 @@ import {
   ENGAGEMENT_LEVELS,
   OBJECTION_TAGS,
   OUTCOMES_CLIENT,
+  OUTCOMES_COACHING,
   OUTCOMES_SALES,
   type CallType,
   type EngagementLevel,
@@ -73,16 +74,21 @@ export async function POST(req: Request) {
     }
   }
 
-  // --- outcome (optional): in ALL_OUTCOMES, and the Sales/Client family must
-  //     match the call type ---
+  // --- outcome (optional): in ALL_OUTCOMES, and the family must match the call
+  //     type. Each call type has its own allowed set; "At Risk" is shared by the
+  //     Client and Coaching sets, so it is valid for either of those call types.
+  //     "Other" has no outcome family — any in-family outcome mismatches. ---
   if (outcome !== undefined && outcome !== null) {
     if (typeof outcome !== "string" || !(ALL_OUTCOMES as readonly string[]).includes(outcome)) {
       return bad("invalid_outcome");
     }
-    if ((OUTCOMES_SALES as readonly string[]).includes(outcome) && callType !== "Sales") {
-      return bad("outcome_type_mismatch");
-    }
-    if ((OUTCOMES_CLIENT as readonly string[]).includes(outcome) && callType !== "Client") {
+    const ALLOWED_OUTCOMES: Record<string, readonly string[]> = {
+      Sales: OUTCOMES_SALES,
+      Client: OUTCOMES_CLIENT,
+      Coaching: OUTCOMES_COACHING,
+      Other: [],
+    };
+    if (!(ALLOWED_OUTCOMES[callType] ?? []).includes(outcome)) {
       return bad("outcome_type_mismatch");
     }
   }
@@ -153,10 +159,20 @@ export async function POST(req: Request) {
       duration: typeof duration === "number" ? duration : null,
       outcome: typeof outcome === "string" ? (outcome as Outcome) : null,
       engagement: typeof engagement === "string" ? (engagement as EngagementLevel) : null,
-      objectionsCount: typeof objectionsCount === "number" ? objectionsCount : null,
+      // Coaching calls don't track objections: a missing count defaults to 0
+      // (so the Notion entry records 0, not an empty cell) and missing tags to
+      // []. Sales/Client behaviour is unchanged (missing → null / undefined).
+      objectionsCount:
+        typeof objectionsCount === "number"
+          ? objectionsCount
+          : callType === "Coaching"
+            ? 0
+            : null,
       objectionsTags: Array.isArray(objectionsTags)
         ? (objectionsTags as ObjectionTag[])
-        : undefined,
+        : callType === "Coaching"
+          ? []
+          : undefined,
       body: typeof pageBody === "string" ? pageBody : undefined,
     };
 

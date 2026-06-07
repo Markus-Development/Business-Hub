@@ -23,6 +23,12 @@ export const translations = {
   "projects.view.calendar": { de: "Kalender", en: "Calendar" },
   "projects.viewToggle.ariaLabel": { de: "Ansicht", en: "View" },
 
+  "projects.views.label": { de: "Ansicht", en: "View" },
+  "projects.views.open": { de: "Offen", en: "Open" },
+  "projects.views.backlog": { de: "Backlog", en: "Backlog" },
+  "projects.views.onhold": { de: "On Hold", en: "On Hold" },
+  "projects.views.done": { de: "Erledigt", en: "Done" },
+
   "projects.calendar.noDeadline": { de: "Kein Fälligkeitsdatum", en: "No deadline" },
 
   "projects.col.name": { de: "Name", en: "Name" },
@@ -669,6 +675,174 @@ export const translations = {
   "areas.focus.loading": { de: "Analyse wird geladen …", en: "Loading analysis…" },
   "areas.field.milestoneDue": { de: "Milestone-Fälligkeitsdatum", en: "Milestone Due" },
   "areas.overdueProjects": { de: "{count} überfällig", en: "{count} overdue" },
+  "areas.review": { de: "Areas Review", en: "Areas Review" },
+
+  "areasManage.title": { de: "Areas verwalten", en: "Manage Areas" },
+  "areasManage.subtitle": {
+    de: "Live-Versionen und veraltete Versionen je Bereich. Veraltete per Klick archivieren.",
+    en: "Live and outdated versions per area. Archive outdated ones with one click.",
+  },
+  "areasManage.back": { de: "Zurück zu Areas", en: "Back to Areas" },
+  "areasManage.refresh": { de: "Neu laden", en: "Reload" },
+  "areasManage.loading": { de: "Versionen werden geladen …", en: "Loading versions…" },
+  "areasManage.error": {
+    de: "Areas konnten nicht geladen werden.",
+    en: "Could not load areas.",
+  },
+  "areasManage.empty": { de: "Keine Areas gefunden.", en: "No areas found." },
+  "areasManage.badge.live": { de: "Live", en: "Live" },
+  "areasManage.badge.outdated": { de: "veraltet", en: "outdated" },
+  "areasManage.badge.archived": { de: "archiviert", en: "archived" },
+  "areasManage.archive": { de: "Archivieren", en: "Archive" },
+  "areasManage.archiveAllOutdated": {
+    de: "Alle veralteten archivieren",
+    en: "Archive all outdated",
+  },
+  "areasManage.openInNotion": { de: "In Notion öffnen", en: "Open in Notion" },
+  "areasManage.archiveSuccess": { de: "Version archiviert.", en: "Version archived." },
+  "areasManage.archiveError": {
+    de: "Archivieren fehlgeschlagen.",
+    en: "Archiving failed.",
+  },
+  "areasManage.nothingToArchive": {
+    de: "Keine veralteten Versionen.",
+    en: "No outdated versions.",
+  },
+
+  // --- Areas Review wizard ---
+  "areasReview.title": { de: "Areas Review", en: "Areas Review" },
+  "areasReview.subtitle": {
+    de: "Geh Bereich für Bereich durch, beantworte die Fragen und gib die neue Version frei.",
+    en: "Go area by area, answer the questions and approve each new version.",
+  },
+  "areasReview.back": { de: "Zurück zu Areas", en: "Back to Areas" },
+  "areasReview.loading": { de: "Review wird vorbereitet …", en: "Preparing review…" },
+  "areasReview.error": {
+    de: "Review konnte nicht geladen werden.",
+    en: "Could not load review.",
+  },
+  "areasReview.empty": { de: "Keine Areas zum Reviewen.", en: "No areas to review." },
+  "areasReview.step": { de: "Bereich {current} von {total}", en: "Area {current} of {total}" },
+  "areasReview.skippableBadge": { de: "keine Bewegung", en: "no movement" },
+  "areasReview.skip": { de: "Überspringen", en: "Skip" },
+  "areasReview.prev": { de: "Zurück", en: "Back" },
+  "areasReview.sectionDone": { de: "Abgeschlossen", en: "Done" },
+  "areasReview.sectionNew": { de: "Neu", en: "New" },
+  "areasReview.sectionOngoing": { de: "Laufend", en: "Ongoing" },
+  "areasReview.noProjects": { de: "Keine", en: "None" },
+  "areasReview.questionsTitle": { de: "Review-Fragen", en: "Review questions" },
+  "areasReview.statusPlaceholder": { de: "Status wählen", en: "Select status" },
+  "areasReview.draftButton": { de: "Entwurf erstellen", en: "Create draft" },
+  "areasReview.drafting": { de: "Entwurf wird erstellt …", en: "Drafting…" },
+  "areasReview.draftError": {
+    de: "Entwurf konnte nicht erstellt werden.",
+    en: "Could not create draft.",
+  },
+  "areasReview.previewTitle": { de: "Vorschau der neuen Version", en: "New version preview" },
+  "areasReview.propertiesTitle": { de: "Eigenschaften", en: "Properties" },
+  "areasReview.bodyTitle": { de: "Inhalt", en: "Body" },
+  "areasReview.approve": { de: "Freigeben & schreiben", en: "Approve & write" },
+  "areasReview.writing": { de: "Wird geschrieben …", en: "Writing…" },
+  "areasReview.writeSuccess": { de: "Neue Version geschrieben.", en: "New version written." },
+  "areasReview.writeError": {
+    de: "Version konnte nicht geschrieben werden.",
+    en: "Could not write version.",
+  },
+  "areasReview.warnings": { de: "Hinweise", en: "Warnings" },
+  "areasReview.redraft": { de: "Neu entwerfen", en: "Redraft" },
+  "areasReview.finished": { de: "Review abgeschlossen.", en: "Review complete." },
+  "areasReview.finishedHint": {
+    de: "Alle Bereiche bearbeitet. Zurück zur Areas-Übersicht.",
+    en: "All areas handled. Back to the Areas overview.",
+  },
+
+  // Universal review questions
+  "areasReview.q.doneExtra": {
+    de: "Etwas erledigt, das nicht in der Projektliste steht?",
+    en: "Anything done that isn't in the project list?",
+  },
+  "areasReview.q.status": {
+    de: "Ist der Status korrekt?",
+    en: "Is the status correct?",
+  },
+  "areasReview.q.milestone": {
+    de: "Meilenstein erreicht oder ändern?",
+    en: "Milestone reached or to change?",
+  },
+  "areasReview.q.milestoneDue": {
+    de: "Meilenstein-Fälligkeitsdatum",
+    en: "Milestone due date",
+  },
+  "areasReview.q.health": {
+    de: "Health-Metric: aktueller Ist-Wert?",
+    en: "Health metric: current actual value?",
+  },
+
+  // Per-area review questions
+  "areasReview.q.content.posts": {
+    de: "Posts diese Woche live (Ziel 5)?",
+    en: "Posts live this week (target 5)?",
+  },
+  "areasReview.q.content.reactivation": {
+    de: "Reaktivierungs-Trigger erreicht (Marketing-Funnel 4+ Wochen stabil)?",
+    en: "Reactivation trigger reached (marketing funnel stable 4+ weeks)?",
+  },
+  "areasReview.q.marketing.profitable": {
+    de: "Funnel profitabel (ROAS / CPL)?",
+    en: "Funnel profitable (ROAS / CPL)?",
+  },
+  "areasReview.q.marketing.nextChannel": {
+    de: "Welcher Kanal bekommt als Nächstes Budget?",
+    en: "Which channel gets budget next?",
+  },
+  "areasReview.q.sales.callsWon": {
+    de: "Calls gelaufen / davon gewonnen?",
+    en: "Calls held / of those won?",
+  },
+  "areasReview.q.sales.objection": {
+    de: "Häufigster Einwand zuletzt (aus Call Notes)?",
+    en: "Most common recent objection (from call notes)?",
+  },
+  "areasReview.q.fulfillment.callsDone": {
+    de: "Alle Monatscalls durch?",
+    en: "All monthly calls done?",
+  },
+  "areasReview.q.fulfillment.atRisk": {
+    de: "Mandant At Risk oder Lieferung überfällig?",
+    en: "Client at risk or delivery overdue?",
+  },
+  "areasReview.q.accounting.booksCurrent": {
+    de: "Mandanten-Bücher aktuell?",
+    en: "Client books up to date?",
+  },
+  "areasReview.q.accounting.ownBooks": {
+    de: "Offene CSV-Imports / EasyFinance + eigene Bücher aktuell?",
+    en: "Open CSV imports / EasyFinance + own books up to date?",
+  },
+  "areasReview.q.operations.timeSink": {
+    de: "Welcher Prozess fraß am meisten Zeit (Automatisierungs-Kandidat)?",
+    en: "Which process ate the most time (automation candidate)?",
+  },
+  "areasReview.q.operations.sop": {
+    de: "SOP fällig oder veraltet?",
+    en: "SOP due or outdated?",
+  },
+  "areasReview.q.development.shipped": {
+    de: "Welche Hub/EasyFinance-Funktion ging live?",
+    en: "Which Hub/EasyFinance feature shipped?",
+  },
+  "areasReview.q.development.blocker": {
+    de: "Was blockiert das nächste Dev-Milestone?",
+    en: "What blocks the next dev milestone?",
+  },
+  "areasReview.q.personal.energy": {
+    de: "Was gab und was nahm Energie?",
+    en: "What gave and what drained energy?",
+  },
+  "areasReview.q.personal.goal": {
+    de: "Persönliches Ziel ins Hintertreffen geraten?",
+    en: "Any personal goal slipping?",
+  },
 
   "resources.title": { de: "Ressourcen", en: "Resources" },
   "resources.search": { de: "Ressourcen durchsuchen …", en: "Search resources…" },

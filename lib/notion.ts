@@ -13,6 +13,7 @@ import type {
   Outcome,
 } from "@/constants/call-notes";
 import type { InboxType } from "@/constants/inbox";
+import { PROJECT_VIEW_STATUSES } from "@/constants/project-views";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -138,6 +139,38 @@ export async function listActiveProjects(): Promise<Project[]> {
     const resp: any = await notion.dataSources.query({
       data_source_id: dataSourceId,
       filter: { property: "Status", status: { equals: "Active" } },
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        projects.push(toProject(page));
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return projects;
+}
+
+// Loads every project whose Status is referenced by one of the named list-views
+// (PROJECT_VIEWS) — the union of Active / In Progress / Later / Backlog / On Hold
+// / Waiting / Done. Same projection/mapping as `listActiveProjects`; the Projects
+// tab then filters this superset down per the active view client-side.
+// `listActiveProjects` is deliberately left untouched (shared by Calendar / Areas
+// / Digest, which only want Active).
+export async function listProjectsForViews(): Promise<Project[]> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const projects: Project[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: {
+        or: PROJECT_VIEW_STATUSES.map((status) => ({
+          property: "Status",
+          status: { equals: status },
+        })),
+      },
       page_size: 100,
       start_cursor: startCursor,
     } as any);
