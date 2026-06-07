@@ -246,9 +246,12 @@ export function ProjectsTable({
       entries.push({ kind: "row", row });
     }
     return entries;
-    // table identity is stable across renders; sorting state already triggers
-    // table.getRowModel() to recompute internally.
-  }, [table, groupByDepartment, t, sorting]);
+    // `items` MUST be in the deps: the `table` instance is a stable reference and
+    // does not change when the project list changes, so without `items` here this
+    // memo keeps a stale `rowEntries` array on view-switch / add / status-update.
+    // Depending on `items` re-runs the memo, and table.getRowModel() then returns
+    // the current rows. (`sorting` stays a dep so column-sort toggles re-derive too.)
+  }, [table, items, groupByDepartment, t, sorting]);
 
   return (
     <>
