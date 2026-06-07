@@ -14,6 +14,7 @@ export const translations = {
   "nav.areas": { de: "Bereiche", en: "Areas" },
   "nav.resources": { de: "Ressourcen", en: "Resources" },
   "nav.calls": { de: "Calls", en: "Calls" },
+  "nav.inbox": { de: "Inbox", en: "Inbox" },
   "nav.capture": { de: "Erfassen", en: "Capture" },
 
   "locale.de": { de: "DE", en: "DE" },
@@ -677,6 +678,9 @@ export const translations = {
   "areas.field.milestoneDue": { de: "Milestone-Fälligkeitsdatum", en: "Milestone Due" },
   "areas.overdueProjects": { de: "{count} überfällig", en: "{count} overdue" },
   "areas.review": { de: "Areas Review", en: "Areas Review" },
+  "areas.card.review": { de: "Reviewen", en: "Review" },
+  "areas.manage": { de: "Versionen verwalten", en: "Manage versions" },
+  "areas.drawer.reviewThis": { de: "Diese Area reviewen", en: "Review this area" },
 
   "areasManage.title": { de: "Areas verwalten", en: "Manage Areas" },
   "areasManage.subtitle": {
@@ -709,12 +713,17 @@ export const translations = {
     de: "Keine veralteten Versionen.",
     en: "No outdated versions.",
   },
+  "areasManage.created": { de: "Erstellt", en: "Created" },
 
   // --- Areas Review wizard ---
   "areasReview.title": { de: "Areas Review", en: "Areas Review" },
   "areasReview.subtitle": {
     de: "Geh Bereich für Bereich durch, beantworte die Fragen und gib die neue Version frei.",
     en: "Go area by area, answer the questions and approve each new version.",
+  },
+  "areasReview.singleSubtitle": {
+    de: "Review für den Bereich {area}.",
+    en: "Reviewing the {area} area.",
   },
   "areasReview.back": { de: "Zurück zu Areas", en: "Back to Areas" },
   "areasReview.loading": { de: "Review wird vorbereitet …", en: "Preparing review…" },
@@ -750,7 +759,61 @@ export const translations = {
     en: "Could not write version.",
   },
   "areasReview.warnings": { de: "Hinweise", en: "Warnings" },
+  "areasReview.warningsHeading": {
+    de: "Diese Aufräum-Schritte sind fehlgeschlagen:",
+    en: "These cleanup steps failed:",
+  },
+  "areasReview.warningsHint": {
+    de: "Die neue Version wurde geschrieben. Du kannst die alte Version oder Projekte in /areas/manage manuell archivieren.",
+    en: "The new version was written. You can archive the old version or projects manually in /areas/manage.",
+  },
+  "areasReview.warningsOpenPage": {
+    de: "Seite zum Archivieren öffnen",
+    en: "Open page to archive",
+  },
+  "areasReview.warningsContinue": { de: "Trotzdem weiter", en: "Continue anyway" },
+  "areasReview.milestone.current": { de: "Aktueller Meilenstein", en: "Current milestone" },
+  "areasReview.milestone.none": {
+    de: "Noch kein Meilenstein gesetzt",
+    en: "No milestone set yet",
+  },
+  "areasReview.milestone.keep": { de: "Beibehalten", en: "Keep" },
+  "areasReview.milestone.reached": { de: "Erreicht, neuen setzen", en: "Reached, set new" },
+  "areasReview.milestone.adjust": { de: "Anpassen", en: "Adjust" },
+  "areasReview.milestone.newLabel": { de: "Neuer Meilenstein", en: "New milestone" },
+  "areasReview.milestone.reachedHint": {
+    de: "Der aktuelle Meilenstein wird als erreicht in den Accomplishments notiert.",
+    en: "The current milestone will be logged as reached in Accomplishments.",
+  },
   "areasReview.redraft": { de: "Neu entwerfen", en: "Redraft" },
+  "areasReview.projects.title": { de: "Neue Projekte", en: "New projects" },
+  "areasReview.projects.hint": {
+    de: "Werden im Department {area} angelegt.",
+    en: "Created in the {area} department.",
+  },
+  "areasReview.projects.add": { de: "Projekt hinzufügen", en: "Add project" },
+  "areasReview.projects.namePlaceholder": { de: "Projektname", en: "Project name" },
+  "areasReview.projects.create": { de: "Projekte anlegen", en: "Create projects" },
+  "areasReview.projects.creating": { de: "Lege an…", en: "Creating…" },
+  "areasReview.projects.success": { de: "Projekte angelegt.", en: "Projects created." },
+  "areasReview.projects.partial": {
+    de: "Einige Projekte konnten nicht angelegt werden.",
+    en: "Some projects could not be created.",
+  },
+  "areasReview.projects.error": { de: "Anlegen fehlgeschlagen.", en: "Could not create projects." },
+  "areasReview.projects.remove": { de: "Entfernen", en: "Remove" },
+  "areasReview.projects.suggest": { de: "AI-Vorschläge holen", en: "Get AI suggestions" },
+  "areasReview.projects.suggesting": { de: "Denke nach…", en: "Thinking…" },
+  "areasReview.projects.suggestError": {
+    de: "Vorschläge fehlgeschlagen.",
+    en: "Could not generate suggestions.",
+  },
+  "areasReview.suggest.milestoneTitle": {
+    de: "Vorgeschlagener Meilenstein",
+    en: "Suggested milestone",
+  },
+  "areasReview.suggest.adopt": { de: "Übernehmen", en: "Adopt" },
+  "areasReview.suggest.adopted": { de: "Übernommen", en: "Adopted" },
   "areasReview.finished": { de: "Review abgeschlossen.", en: "Review complete." },
   "areasReview.finishedHint": {
     de: "Alle Bereiche bearbeitet. Zurück zur Areas-Übersicht.",
@@ -1054,6 +1117,75 @@ export const translations = {
   },
   "calls.recent.open": { de: "Öffnen", en: "Open" },
   "calls.recent.noDate": { de: "Kein Datum", en: "No date" },
+
+  // --- Inbox triage (Tab 8) ---
+  "inbox.title": { de: "Inbox", en: "Inbox" },
+  "inbox.subtitle": {
+    de: "Erfasste Einträge nacheinander verarbeiten: KI schlägt vor, du entscheidest.",
+    en: "Process captured entries one at a time: the AI proposes, you decide.",
+  },
+  "inbox.loading": { de: "Wird geladen …", en: "Loading…" },
+  "inbox.loadError": {
+    de: "Inbox konnte nicht geladen werden.",
+    en: "Could not load the Inbox.",
+  },
+  "inbox.notConfigured": {
+    de: "Inbox ist nicht konfiguriert (NOTION_INBOX_DB_ID fehlt).",
+    en: "Inbox is not configured (NOTION_INBOX_DB_ID is missing).",
+  },
+  "inbox.empty": {
+    de: "Keine offenen Einträge. Alles verarbeitet.",
+    en: "No open entries. All processed.",
+  },
+  "inbox.passComplete": {
+    de: "Alle Einträge in diesem Durchgang gesehen.",
+    en: "Reviewed every entry in this pass.",
+  },
+  "inbox.progress": { de: "{x} / {n}", en: "{x} / {n}" },
+  "inbox.getSuggestion": { de: "Vorschlag holen", en: "Get suggestion" },
+  "inbox.regenerate": { de: "Neu vorschlagen", en: "Regenerate" },
+  "inbox.suggesting": { de: "Denke nach …", en: "Thinking…" },
+  "inbox.dest.project": { de: "Projekt", en: "Project" },
+  "inbox.dest.resource": { de: "Ressource", en: "Resource" },
+  "inbox.field.title": { de: "Titel", en: "Title" },
+  "inbox.field.titleRequired": { de: "Titel wird benötigt.", en: "A title is required." },
+  "inbox.field.body": { de: "Inhalt", en: "Body" },
+  "inbox.field.department": { de: "Bereich", en: "Department" },
+  "inbox.field.priority": { de: "Priorität", en: "Priority" },
+  "inbox.field.nextAction": { de: "Nächste Aktion", en: "Next action" },
+  "inbox.field.dueDate": { de: "Fällig am", en: "Due date" },
+  "inbox.field.area": { de: "Area", en: "Area" },
+  "inbox.field.areaNone": { de: "Keine", en: "None" },
+  "inbox.field.type": { de: "Typ", en: "Type" },
+  "inbox.create": { de: "Anlegen & abhaken", en: "Create & mark done" },
+  "inbox.creating": { de: "Wird angelegt …", en: "Creating…" },
+  "inbox.someday": { de: "Someday", en: "Someday" },
+  "inbox.skip": { de: "Überspringen", en: "Skip" },
+  "inbox.toast.projectCreated": {
+    de: "Projekt angelegt und Eintrag abgehakt.",
+    en: "Project created and entry marked done.",
+  },
+  "inbox.toast.resourceCreated": {
+    de: "Ressource angelegt und Eintrag abgehakt.",
+    en: "Resource created and entry marked done.",
+  },
+  "inbox.toast.someday": {
+    de: "Als Someday markiert.",
+    en: "Marked as Someday.",
+  },
+  "inbox.toast.processWarning": {
+    de: "Angelegt, aber der Inbox-Eintrag konnte nicht abgehakt werden.",
+    en: "Created, but the Inbox entry could not be marked done.",
+  },
+  "inbox.toast.processError": {
+    de: "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    en: "Something went wrong. Please try again.",
+  },
+  "inbox.toast.suggestError": {
+    de: "Vorschlag konnte nicht erstellt werden.",
+    en: "Could not generate a suggestion.",
+  },
+  "inbox.toast.openInNotion": { de: "In Notion öffnen", en: "Open in Notion" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plug, Inbox } from "lucide-react";
+import {
+  Plug,
+  Inbox,
+  FolderKanban,
+  Sparkles,
+  CalendarDays,
+  Users,
+  LayoutGrid,
+  BookOpen,
+  Phone,
+  type LucideIcon,
+} from "lucide-react";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -11,16 +22,17 @@ import { USER } from "@/constants/user";
 import { ROUTES } from "@/constants/routes";
 import type { TranslationKey } from "@/constants/translations";
 
-type Tab = { href: string; label: TranslationKey };
+type Tab = { href: string; label: TranslationKey; icon: LucideIcon };
 
 const TABS: Tab[] = [
-  { href: ROUTES.pages.projects, label: "nav.projects" },
-  { href: ROUTES.pages.digest, label: "nav.digest" },
-  { href: ROUTES.pages.calendar, label: "nav.calendar" },
-  { href: ROUTES.pages.clients, label: "nav.clients" },
-  { href: ROUTES.pages.areas, label: "nav.areas" },
-  { href: ROUTES.pages.resources, label: "nav.resources" },
-  { href: ROUTES.pages.calls, label: "nav.calls" },
+  { href: ROUTES.pages.projects, label: "nav.projects", icon: FolderKanban },
+  { href: ROUTES.pages.digest, label: "nav.digest", icon: Sparkles },
+  { href: ROUTES.pages.calendar, label: "nav.calendar", icon: CalendarDays },
+  { href: ROUTES.pages.clients, label: "nav.clients", icon: Users },
+  { href: ROUTES.pages.areas, label: "nav.areas", icon: LayoutGrid },
+  { href: ROUTES.pages.resources, label: "nav.resources", icon: BookOpen },
+  { href: ROUTES.pages.calls, label: "nav.calls", icon: Phone },
+  { href: ROUTES.pages.inbox, label: "nav.inbox", icon: Inbox },
 ];
 
 export function TopNav() {
@@ -70,12 +82,13 @@ export function TopNav() {
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
+                <tab.icon className="size-3.5" aria-hidden />
                 {t(tab.label)}
               </Link>
             );

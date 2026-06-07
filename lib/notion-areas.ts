@@ -1,5 +1,6 @@
 import "server-only";
 import { Client } from "@notionhq/client";
+import { PRIORITIES, STATUSES } from "@/constants/priorities";
 
 // Shared helpers for the Areas versioning workflow (create new version,
 // archive old versions, archive related projects).
@@ -17,15 +18,26 @@ const notion = new Client({ auth: process.env.NOTION_TOKEN });
 // ---------------------------------------------------------------------------
 
 // Pulls the 32-char hex page id out of a Notion URL or a raw id and returns it
-// dashed (8-4-4-4-12). Notion URLs end with the page id, so when several hex
-// runs are present we take the LAST one. Query strings (?pvs=…) are ignored.
+// dashed (8-4-4-4-12). Notion URLs always END with the page id, so we anchor the
+// match to the end of the string (/[0-9a-fA-F]{32}$/) after stripping the query
+// (?pvs=…) / hash (#block) / trailing slashes and removing dashes.
+//
+// Off-by-N fix: stripping dashes can FUSE a hex-like slug tail onto the real id,
+// producing a single >32-char hex run — e.g. ".../Accounting-v3-<id>" -> "…v3<id>"
+// or ".../…-Juni-2026-<id>" -> "…2026<id>". A first-match /[0-9a-fA-F]{32}/ then
+// starts N chars too early and returns a corrupted, left-shifted UUID. Anchoring
+// to the end takes the LAST 32 hex chars, which are always the true page id.
 export function extractPageId(urlOrId: string): string {
-  const compact = String(urlOrId).split("?")[0].replace(/-/g, "");
-  const matches = compact.match(/[0-9a-fA-F]{32}/g);
-  if (!matches || matches.length === 0) {
+  const compact = String(urlOrId)
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/\/+$/, "")
+    .replace(/-/g, "");
+  const match = compact.match(/[0-9a-fA-F]{32}$/);
+  if (!match) {
     throw new Error(`no_page_id_in:${urlOrId}`);
   }
-  const id = matches[matches.length - 1].toLowerCase();
+  const id = match[0].toLowerCase();
   return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(
     16,
     20,
@@ -254,6 +266,35 @@ export type ReviewProject = {
 
 function statusName(prop: any): string | null {
   return prop?.status?.name ?? null;
+}
+
+// Creates a new Projects-DB page from the review wizard's manual "new projects"
+// panel. Defaults: Status="Active", Priority="Medium" (both from
+// constants/priorities.ts), Department=<area base>. Due Date is set only when a
+// dueDate (YYYY-MM-DD) is supplied. No assumptions about other properties.
+const PROJECT_DEFAULT_STATUS = STATUSES[0]; // "Active"
+const PROJECT_DEFAULT_PRIORITY = PRIORITIES[1]; // "Medium"
+
+export async function createAreaProject(input: {
+  name: string;
+  department: string;
+  dueDate?: string | null;
+}): Promise<{ id: string; url: string }> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const properties: Record<string, unknown> = {
+    Name: { title: rt(input.name) },
+    Status: { status: { name: PROJECT_DEFAULT_STATUS } },
+    Priority: { select: { name: PROJECT_DEFAULT_PRIORITY } },
+    Department: { select: { name: input.department } },
+  };
+  if (input.dueDate) {
+    properties["Due Date"] = { date: { start: input.dueDate } };
+  }
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  return { id: page.id, url: page.url as string };
 }
 
 // Lists EVERY project (all statuses) with the fields the review diff needs.

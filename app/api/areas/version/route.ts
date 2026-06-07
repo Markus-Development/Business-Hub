@@ -86,6 +86,13 @@ export async function POST(req: Request) {
   }
 
   const warnings: string[] = [];
+  // Records a warning and surfaces it in the server log so future cleanup
+  // failures are traceable (the client only shows the strings, not the cause).
+  const addWarning = (detail: string) => {
+    warnings.push(detail);
+    // eslint-disable-next-line no-console
+    console.warn("area_version_warning", detail);
+  };
 
   // --- (2) archive previous version (non-fatal) ---
   if (typeof previousVersionUrl === "string" && previousVersionUrl.trim().length > 0) {
@@ -93,7 +100,7 @@ export async function POST(req: Request) {
       await archiveAreaPage(previousVersionUrl.trim());
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown_error";
-      warnings.push(`archive_previous_failed: ${previousVersionUrl} (${message})`);
+      addWarning(`archive_previous_failed: ${previousVersionUrl} (${message})`);
     }
   }
 
@@ -101,14 +108,14 @@ export async function POST(req: Request) {
   if (Array.isArray(archiveProjectUrls)) {
     for (const url of archiveProjectUrls) {
       if (typeof url !== "string" || url.trim().length === 0) {
-        warnings.push("archive_project_skipped: empty url");
+        addWarning("archive_project_skipped: empty url");
         continue;
       }
       try {
         await archiveProject(url.trim());
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown_error";
-        warnings.push(`archive_project_failed: ${url} (${message})`);
+        addWarning(`archive_project_failed: ${url} (${message})`);
       }
     }
   }

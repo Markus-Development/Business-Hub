@@ -5,11 +5,23 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 import type { AreaSummary } from "@/lib/notion-areas";
 
 const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+
+// Localized created-at timestamp so Markus can tell which version is newest.
+function formatCreated(iso: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
 
 type Group = {
   base: string;
@@ -198,6 +210,7 @@ function Row({
   busy?: boolean;
 }) {
   const t = useT();
+  const [locale] = useLocale();
   return (
     <li
       className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${
@@ -220,6 +233,12 @@ function Row({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <span
+          className="font-mono text-xs text-muted-foreground"
+          title={t("areasManage.created")}
+        >
+          {formatCreated(area.created, locale)}
+        </span>
         <a
           href={area.url}
           target="_blank"

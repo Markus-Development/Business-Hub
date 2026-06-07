@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +20,8 @@ import { ROUTES } from "@/constants/routes";
 import type { ReviewQuestion } from "@/constants/areas-review";
 import type { TranslationKey } from "@/constants/translations";
 import type { AreaReviewState } from "@/app/api/areas/review/diff/route";
+import { AreaProjectsPanel } from "./AreaProjectsPanel";
+import { MilestoneField, type MilestoneStatus } from "./MilestoneField";
 
 type T = (key: TranslationKey) => string;
 
@@ -53,6 +56,12 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
   const tRef = useRef(t);
   tRef.current = t;
 
+  // Single-area mode: `?area=<base>` narrows the wizard to one area. Absent →
+  // the full sequential review (unchanged behaviour). Kept as a primitive so the
+  // mount effect's dep list stays loop-safe.
+  const searchParams = useSearchParams();
+  const areaParam = searchParams.get("area");
+
   const [areas, setAreas] = useState<AreaReviewState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -62,6 +71,9 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
   const [drafts, setDrafts] = useState<Record<string, DraftPayload>>({});
   const [written, setWritten] = useState<Set<string>>(new Set());
+  // Cleanup warnings from the last approve, kept per area so the detail stays
+  // readable on the step instead of vanishing with a count-only toast.
+  const [warnings, setWarnings] = useState<Record<string, string[]>>({});
   const [drafting, setDrafting] = useState(false);
   const [writing, setWriting] = useState(false);
 
@@ -78,11 +90,15 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
         if (!cancelled) {
           const loaded = data.areas as AreaReviewState[];
-          setAreas(loaded);
+          // In single-area mode keep only the matching base; an empty result
+          // falls through to the existing empty screen (no new error route).
+          const list = areaParam ? loaded.filter((a) => a.base === areaParam) : loaded;
+          setAreas(list);
+          setIndex(0);
           // Pre-fill the milestone answer (and due date) with each area's
           // current value so the user can confirm or edit it in place.
           const seeded: Record<string, Record<string, string>> = {};
-          for (const a of loaded) {
+          for (const a of list) {
             const seed: Record<string, string> = {};
             if (a.area.currentMilestone) seed.milestone = a.area.currentMilestone;
             if (a.area.milestoneDueDate) seed.milestone_due = a.area.milestoneDueDate.slice(0, 10);
@@ -99,7 +115,7 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [notConfigured]);
+  }, [notConfigured, areaParam]);
 
   const current = areas[index];
   const currentDraft = current ? drafts[current.area.id] : undefined;
@@ -149,13 +165,16 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "write_failed");
       setWritten((prev) => new Set(prev).add(current.area.id));
-      const warnings = (data.warnings ?? []) as string[];
-      if (warnings.length > 0) {
-        toast.warning(`${tRef.current("areasReview.warnings")}: ${warnings.length}`);
+      const areaWarnings = (data.warnings ?? []) as string[];
+      setWarnings((prev) => ({ ...prev, [current.area.id]: areaWarnings }));
+      if (areaWarnings.length > 0) {
+        // Stay on the step so the persistent cleanup-failure callout is visible;
+        // Markus advances manually once he has read it.
+        toast.warning(`${tRef.current("areasReview.warnings")}: ${areaWarnings.length}`);
       } else {
         toast.success(tRef.current("areasReview.writeSuccess"));
+        goNext();
       }
-      goNext();
     } catch {
       toast.error(tRef.current("areasReview.writeError"));
     } finally {
@@ -164,6 +183,11 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
   }, [current, currentDraft, goNext]);
 
   // --- render -------------------------------------------------------------
+  // In single-area mode, surface the base name in the subtitle.
+  const singleSubtitle = areaParam
+    ? t("areasReview.singleSubtitle").replace("{area}", areaParam)
+    : undefined;
+
   if (notConfigured) {
     return (
       <Shell t={t}>
@@ -187,7 +211,7 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
   }
   if (areas.length === 0 || index >= areas.length) {
     return (
-      <Shell t={t}>
+      <Shell t={t} subtitle={singleSubtitle}>
         <div className="rounded-lg border border-border bg-card p-6 text-center">
           <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
           <p className="font-medium text-foreground">
@@ -205,7 +229,7 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
   const areaAnswers = answers[current.area.id] ?? {};
 
   return (
-    <Shell t={t}>
+    <Shell t={t} subtitle={singleSubtitle}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <span className="text-xs font-medium text-muted-foreground">
           {t("areasReview.step")
@@ -254,17 +278,53 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
               {t("areasReview.questionsTitle")}
             </h3>
             <div className="space-y-3">
-              {current.questions.map((q) => (
-                <QuestionField
-                  key={q.id}
-                  q={q}
-                  t={t}
-                  helper={questionHelper(q.id, current.area, t)}
-                  value={areaAnswers[q.id] ?? ""}
-                  onChange={(v) => setAnswer(current.area.id, q.id, v)}
-                />
-              ))}
+              {current.questions.map((q) =>
+                q.id === "milestone" ? (
+                  <MilestoneField
+                    key={q.id}
+                    current={current.area.currentMilestone ?? ""}
+                    status={areaAnswers["milestone_status"] ?? "keep"}
+                    milestone={areaAnswers["milestone"] ?? ""}
+                    onStatusChange={(s: MilestoneStatus) =>
+                      setAnswer(current.area.id, "milestone_status", s)
+                    }
+                    onMilestoneChange={(v) => setAnswer(current.area.id, "milestone", v)}
+                  />
+                ) : (
+                  <QuestionField
+                    key={q.id}
+                    q={q}
+                    t={t}
+                    helper={questionHelper(q.id, current.area, t)}
+                    value={areaAnswers[q.id] ?? ""}
+                    onChange={(v) => setAnswer(current.area.id, q.id, v)}
+                  />
+                ),
+              )}
             </div>
+
+            {/* Manual + AI-prefilled new-projects panel — independent of the draft/version flow. */}
+            <div className="mt-5">
+              <AreaProjectsPanel
+                department={current.base}
+                area={{ ...current.area, base: current.base }}
+                diff={{
+                  doneProjects: current.doneProjects,
+                  newProjects: current.newProjects,
+                  ongoingProjects: current.ongoingProjects,
+                }}
+                answers={areaAnswers}
+                onAdoptMilestone={(m, due) => {
+                  setAnswer(current.area.id, "milestone", m);
+                  if (due) setAnswer(current.area.id, "milestone_due", due);
+                  // Surface the adopted text in an editable field: flip keep -> adjust.
+                  if ((areaAnswers["milestone_status"] ?? "keep") === "keep") {
+                    setAnswer(current.area.id, "milestone_status", "adjust");
+                  }
+                }}
+              />
+            </div>
+
             <div className="mt-5 flex items-center gap-2">
               <Button onClick={() => void createDraft()} disabled={drafting}>
                 <Sparkles className="mr-1.5 h-4 w-4" />
@@ -290,12 +350,55 @@ export function ReviewWizard({ notConfigured }: { notConfigured?: boolean }) {
             }
           />
         )}
+
+        {(warnings[current.area.id]?.length ?? 0) > 0 && (
+          <div className="mt-4 rounded-md border border-amber-300/60 bg-amber-500/10 p-3 dark:border-amber-800/50">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {t("areasReview.warningsHeading")}
+            </p>
+            <ul className="mt-1.5 list-disc space-y-2 pl-5">
+              {warnings[current.area.id].map((w, i) => {
+                // Each warning carries the failed page URL — surface it as a direct
+                // link so Markus can open and archive that page manually.
+                const url = w.match(/(https?:\/\/[^\s)]+)/)?.[1] ?? null;
+                return (
+                  <li key={i} className="break-words text-xs text-amber-700 dark:text-amber-400">
+                    <span className="font-mono">{w}</span>
+                    {url && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        <ExternalLink className="size-3" aria-hidden />
+                        {t("areasReview.warningsOpenPage")}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">{t("areasReview.warningsHint")}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={goNext}>
+              {t("areasReview.warningsContinue")}
+            </Button>
+          </div>
+        )}
       </section>
     </Shell>
   );
 }
 
-function Shell({ t, children }: { t: T; children: React.ReactNode }) {
+function Shell({
+  t,
+  subtitle,
+  children,
+}: {
+  t: T;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mx-auto w-full max-w-[1080px] px-6 py-8">
       <header className="mb-5">
@@ -307,7 +410,7 @@ function Shell({ t, children }: { t: T; children: React.ReactNode }) {
           {t("areasReview.back")}
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-foreground">{t("areasReview.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("areasReview.subtitle")}</p>
+        <p className="text-sm text-muted-foreground">{subtitle ?? t("areasReview.subtitle")}</p>
       </header>
       {children}
     </div>

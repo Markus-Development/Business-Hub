@@ -1210,3 +1210,69 @@ export async function addToInbox(
   })) as any;
   return { id: page.id as string, url: page.url as string };
 }
+
+// One unprocessed Inbox entry. Most of the captured content lives in `name`
+// (the title) as a long free-text string; body blocks are usually empty but may
+// exist (the triage suggest route fetches them separately via getPageBlocks).
+export type InboxEntry = {
+  id: string;
+  name: string;
+  type: string | null;
+  createdTime: string;
+};
+
+// Lists unprocessed Inbox entries (Processed=false), oldest-first (FIFO) by the
+// `Captured At` created_time property. Reuses the lazily-cached
+// inboxDataSourceId already used by addToInbox.
+export async function listInboxEntries(): Promise<InboxEntry[]> {
+  const dataSourceId = await getInboxDataSourceId();
+  const entries: InboxEntry[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: { property: "Processed", checkbox: { equals: false } },
+      sorts: [{ property: "Captured At", direction: "ascending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        const p = page.properties as Record<string, unknown>;
+        entries.push({
+          id: page.id,
+          name: asTitle(p["Name"] as any),
+          type: asSelect(p["Type"] as any),
+          createdTime: page.created_time ?? "",
+        });
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return entries;
+}
+
+// Updates an Inbox entry's triage fields. Only the provided properties are
+// written: Processed (checkbox), Routed To (rich_text), Type (select). Used
+// after routing an entry to a Project / Resource, or marking it Someday.
+export async function updateInboxEntry(
+  pageId: string,
+  patch: { processed?: boolean; routedTo?: string; type?: string },
+): Promise<void> {
+  const properties: Record<string, any> = {};
+  if (patch.processed !== undefined) {
+    properties.Processed = { type: "checkbox", checkbox: patch.processed };
+  }
+  if (patch.routedTo !== undefined) {
+    properties["Routed To"] = {
+      type: "rich_text",
+      rich_text: patch.routedTo
+        ? [{ type: "text", text: { content: patch.routedTo } }]
+        : [],
+    };
+  }
+  if (patch.type !== undefined) {
+    properties.Type = { type: "select", select: patch.type ? { name: patch.type } : null };
+  }
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
+}

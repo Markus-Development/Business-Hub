@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { roadmapDraft, extractText } from "@/lib/anthropic";
+import { getAreaPageBlocks, type NotionBlock } from "@/lib/notion";
 import { AREA_STATUSES, type AreaVersionProps } from "@/lib/notion-areas";
 import { questionsForArea } from "@/constants/areas-review";
 
@@ -14,6 +15,7 @@ type ProjectRef = {
 
 type Body = {
   area?: {
+    id?: string;
     name?: string;
     url?: string;
     status?: string | null;
@@ -58,6 +60,36 @@ function parseModelJson(raw: string): { properties?: unknown; body?: unknown } |
   }
 }
 
+// Joins a block's rich_text array into trimmed plain text.
+function blockPlainText(data: any): string {
+  const parts = data?.rich_text ?? [];
+  return parts
+    .map((p: any) => p?.plain_text ?? "")
+    .join("")
+    .trim();
+}
+
+// Walks the previous version's page blocks and returns the bullets under the
+// "## Accomplishments" heading (the next heading_2 ends the section). Empty /
+// whitespace bullets are dropped. Used to carry accomplishments forward
+// cumulatively across versions.
+function extractAccomplishmentsBullets(blocks: NotionBlock[]): string[] {
+  const bullets: string[] = [];
+  let inSection = false;
+  for (const block of blocks) {
+    if (block.type === "heading_2") {
+      if (inSection) break; // the next heading_2 closes the Accomplishments section
+      if (blockPlainText(block.data).toLowerCase() === "accomplishments") inSection = true;
+      continue;
+    }
+    if (inSection && block.type === "bulleted_list_item") {
+      const text = blockPlainText(block.data);
+      if (text) bullets.push(text);
+    }
+  }
+  return bullets;
+}
+
 const SYSTEM_PROMPT = `Du bist ein präziser Strategie-Co-Pilot für die wöchentliche Areas-Review eines Solo-Unternehmers. Du textest eine neue Version einer "Area"-Seite.
 
 Antworte AUSSCHLIESSLICH mit striktem JSON dieser Form, ohne Code-Fences, ohne Vor- oder Nachtext:
@@ -82,7 +114,11 @@ Der "body" hat exakt diese Sektionen in dieser Reihenfolge:
 ## Notes
 
 Regeln:
-- Done-Projekte als datierte Bullets in Accomplishments rollen, Format: "- ✅ <Projektname> (<YYYY-MM-DD>)". Nutze das pro Projekt angegebene Datum; erfinde KEINE Daten.
+- ## Accomplishments ist KUMULATIV über Versionen. Übernimm ZUERST ALLE unter BESTEHENDE ACCOMPLISHMENTS aufgeführten Bullets WORTWÖRTLICH und unverändert, in derselben Reihenfolge.
+- Hänge DANACH die neuen Done-Projekte als "- ✅ <Projektname> (<YYYY-MM-DD>)" an. Nutze das pro Projekt angegebene Datum; erfinde KEINE Daten.
+- KEINE Duplikate: ein Done-Projekt, dessen Name bereits in einem bestehenden Bullet vorkommt, NICHT erneut anhängen.
+- Wenn unter ERREICHTER MEILENSTEIN ein Bullet vorgegeben ist (beginnt mit 🏁), nimm ihn zusätzlich WORTWÖRTLICH als eigenen Bullet in ## Accomplishments auf. Steht dort "keiner", füge keinen solchen Bullet hinzu. Keine Duplikate.
+- Reihenfolge in Accomplishments: bestehende Bullets zuerst, danach der erreichte-Meilenstein-Bullet (falls vorhanden), danach die neuen Done-Projekte.
 - Done-Projekte NICHT in Connected Projects auflisten. In Connected Projects nur laufende und neue Projekte als "- <Name>".
 - Wenn unter HEALTH-METRIC eine fertige 📊-Zeile vorgegeben ist, übernimm sie WORTWÖRTLICH und unverändert als eigene Zeile in ## Notes. Erfinde keine eigene Health-Zeile.
 - "healthMetric" in properties ist die DEFINITION (was gemessen wird), nicht der Ist-Status. Lass sie unverändert, wenn vorgegeben.
@@ -113,6 +149,35 @@ export async function POST(req: Request) {
   const ongoing = diff?.ongoingProjects ?? [];
   const ans = answers ?? {};
   const reviewDate = new Date().toISOString().slice(0, 10);
+
+  // Carry the previous version's Accomplishments forward (cumulative across
+  // versions). Read the live page body once; a fetch failure or missing id is a
+  // soft-fail — we proceed without carry-forward rather than killing the draft.
+  let existingAccomplishments: string[] = [];
+  if (typeof area.id === "string" && area.id.trim()) {
+    try {
+      const blocks = await getAreaPageBlocks(area.id.trim());
+      existingAccomplishments = extractAccomplishmentsBullets(blocks);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "area_review_accomplishments_read_failed",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // Milestone choice: "keep" carries the current milestone forward unchanged;
+  // "reached" sets a new one AND logs the old one as a 🏁 bullet in
+  // Accomplishments; "adjust" replaces the wording without logging a reached
+  // bullet. Default "keep".
+  const milestoneStatus = typeof ans.milestone_status === "string" ? ans.milestone_status : "keep";
+  const areaCurrentMilestone =
+    typeof area.currentMilestone === "string" ? area.currentMilestone.trim() : "";
+  const reachedMilestoneBullet =
+    milestoneStatus === "reached" && areaCurrentMilestone
+      ? `🏁 Meilenstein erreicht: ${areaCurrentMilestone} (${reviewDate})`
+      : null;
 
   // Health metric: the definition (what is measured) stays as the property; the
   // dropdown selection is the actual status and is composed into the body's 📊
@@ -145,6 +210,15 @@ export async function POST(req: Request) {
     healthLine
       ? `- Übernimm diese Zeile WÖRTLICH als eigene Zeile in ## Notes: ${healthLine}`
       : "- Keine Health-Zeile in ## Notes hinzufügen.",
+    "",
+    "BESTEHENDE ACCOMPLISHMENTS (unverändert übernehmen, dann neue anhängen, keine Duplikate):",
+    existingAccomplishments.length
+      ? existingAccomplishments.map((b) => `- ${b}`).join("\n")
+      : "- keine",
+    "",
+    reachedMilestoneBullet
+      ? `ERREICHTER MEILENSTEIN (als eigenen Bullet in ## Accomplishments aufnehmen):\n- ${reachedMilestoneBullet}`
+      : "ERREICHTER MEILENSTEIN: keiner",
     "",
     "DONE-PROJEKTE (in Accomplishments rollen, aus Connected Projects entfernen):",
     done.length
@@ -201,8 +275,14 @@ export async function POST(req: Request) {
   if (properties.status && !(AREA_STATUSES as readonly string[]).includes(properties.status)) {
     delete properties.status; // never send an invalid status to /api/areas/version
   }
-  if (typeof ans.milestone === "string" && ans.milestone.trim()) {
-    properties.currentMilestone = ans.milestone.trim();
+  // Milestone: "keep" carries the current one forward unchanged; "reached" /
+  // "adjust" use the entered text, falling back to the current one if empty.
+  if (milestoneStatus === "keep") {
+    if (areaCurrentMilestone) properties.currentMilestone = areaCurrentMilestone;
+  } else {
+    const entered = typeof ans.milestone === "string" ? ans.milestone.trim() : "";
+    const next = entered || areaCurrentMilestone;
+    if (next) properties.currentMilestone = next;
   }
   // healthMetric is the DEFINITION — carry the existing one forward unchanged.
   // The dropdown selection (the actual status) lives in the body's 📊 line, not

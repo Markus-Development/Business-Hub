@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ClipboardCheck, RefreshCw, Sparkles } from "lucide-react";
+import { ClipboardCheck, History, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
@@ -100,12 +100,20 @@ export function AreasView({
     <div className="mx-auto w-full max-w-screen-2xl">
       <header className="mb-5 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-foreground">{t("areas.title")}</h1>
-        <Button asChild variant="outline" size="sm">
-          <Link href={ROUTES.pages.areasReview}>
-            <ClipboardCheck className="mr-1.5 h-4 w-4" />
-            {t("areas.review")}
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={ROUTES.pages.areasReview}>
+              <ClipboardCheck className="mr-1.5 h-4 w-4" />
+              {t("areas.review")}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={ROUTES.pages.areasManage}>
+              <History className="mr-1.5 h-4 w-4" />
+              {t("areas.manage")}
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <FocusHeader />

@@ -27,6 +27,7 @@ const areasUpdate = (id: string) => `/api/areas/${encodeURIComponent(id)}/update
 export const ROUTES = {
   pages: {
     home: "/",
+    inbox: "/inbox",
     projects: "/projects",
     digest: "/digest",
     calendar: "/calendar",
@@ -83,6 +84,12 @@ export const ROUTES = {
       // questions; `reviewDraft` calls Anthropic to draft the new version.
       reviewDiff: "/api/areas/review/diff",
       reviewDraft: "/api/areas/review/draft",
+      // Manual "new projects" panel in the review step — creates Projects-DB
+      // pages in the area's department (independent of the draft/version flow).
+      reviewProjects: "/api/areas/review/projects",
+      // AI pre-fill for the new-projects panel: suggests one next milestone + 3-6
+      // next-phase projects from the area state + roadmap.md (read-only).
+      reviewSuggest: "/api/areas/review/suggest",
     },
     resources: {
       list: "/api/resources",
@@ -120,6 +127,9 @@ export const ROUTES = {
     },
     inbox: {
       create: "/api/inbox/create",
+      list: "/api/inbox/list",
+      suggest: "/api/inbox/suggest",
+      process: "/api/inbox/process",
     },
   },
 } as const;

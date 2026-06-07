@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   ChevronRight,
   CircleDashed,
+  ClipboardCheck,
   ExternalLink,
   Flag,
   Gauge,
@@ -32,6 +34,10 @@ import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/constants/routes";
 import type { AreaUpdateField, NotionArea, NotionBlock } from "@/lib/notion";
+
+// Strip the " (vN)" version suffix so the single-area review opens against the
+// base name the diff route keys on (same rule as elsewhere in the Areas code).
+const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
 
 type Props = {
   area: NotionArea | null;
@@ -168,11 +174,23 @@ export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
           ) : (
             <span />
           )}
-          <SheetClose asChild>
-            <Button variant="outline" size="sm">
-              {t("projects.drawer.close")}
-            </Button>
-          </SheetClose>
+          <div className="flex items-center gap-2">
+            {area ? (
+              <Button asChild variant="outline" size="sm">
+                <Link
+                  href={`${ROUTES.pages.areasReview}?area=${encodeURIComponent(normalize(area.name))}`}
+                >
+                  <ClipboardCheck className="mr-1.5 size-3.5" aria-hidden />
+                  {t("areas.drawer.reviewThis")}
+                </Link>
+              </Button>
+            ) : null}
+            <SheetClose asChild>
+              <Button variant="outline" size="sm">
+                {t("projects.drawer.close")}
+              </Button>
+            </SheetClose>
+          </div>
         </SheetFooter>
       </SheetContent>
     </Sheet>

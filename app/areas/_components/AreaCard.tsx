@@ -2,11 +2,15 @@
 
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { ClipboardCheck, Pencil } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/utils";
 import type { AreaUpdateField, NotionArea } from "@/lib/notion";
+
+// Strip the " (vN)" version suffix so the single-area review opens against the
+// base name the diff route keys on (same rule as elsewhere in the Areas code).
+const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
 
 type Props = {
   area: NotionArea;
@@ -146,6 +150,13 @@ export function AreaCard({
             {t("areas.overdueProjects").replace("{count}", String(overdueCount))}
           </Link>
         ) : null}
+        <Link
+          href={`${ROUTES.pages.areasReview}?area=${encodeURIComponent(normalize(area.name))}`}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <ClipboardCheck className="size-3.5" aria-hidden />
+          {t("areas.card.review")}
+        </Link>
       </footer>
     </div>
   );
