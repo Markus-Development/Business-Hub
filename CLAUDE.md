@@ -812,6 +812,8 @@ Snapshot of what actually exists in the repo. Treat this as the single source of
 
 **Bootstrap date:** 2026-05-15
 
+**Deployment:** Hosted on **Railway**, which auto-deploys from the `main` branch on every push. All env vars (Notion / Google / Zoho / Supabase / Anthropic / `APP_PASSWORD` / `SESSION_SECRET`) are configured in the Railway project, not committed. After a push, the new client JS bundle only takes effect once the Railway deploy finishes — a one-time hard refresh in the browser clears the old cached bundle.
+
 **Stack & scaffold:**
 - Next.js 16.2.6 (App Router) + React 19.2.4 + TypeScript 5 + Tailwind v4 (PostCSS plugin, no `tailwind.config.js`).
 - shadcn/ui with the **Nova preset** (`style: "radix-nova"`, `baseColor: "neutral"`, `iconLibrary: "lucide"`). Components in [components/ui/](components/ui/): `badge`, `button`, `card`, `dialog`, `input`, `select`, `separator`, `sheet`, `sonner`, `tabs`.
