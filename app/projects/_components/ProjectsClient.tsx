@@ -108,11 +108,19 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
 
   const handleUpdate = async (pageId: string, field: UpdateField, value: string | null) => {
     const prev = items;
+    const isStatusChange = field === "Status";
     // Status -> Archived is not a normal edit: it moves the project to the
     // Archive DB and trashes the source page. Optimistically drop the row;
     // reconcile (restore) only if the request fails.
-    const archiving = field === "Status" && value === "Archived";
-    if (archiving) {
+    const archiving = isStatusChange && value === "Archived";
+    // A non-archive status change that takes the project out of the Active-only
+    // list (Done / On Hold). The hub loads Active-only (listActiveProjects), so
+    // in Table/Calendar the row must leave immediately. In Kanban the card must
+    // stay visible and move between the Active / On Hold / Done columns instead.
+    const leavingActiveList =
+      isStatusChange && value !== "Active" && value !== "Archived" && view !== "kanban";
+
+    if (archiving || leavingActiveList) {
       setItems(prev.filter((p) => p.id !== pageId));
     } else {
       const key = FIELD_KEY[field];
@@ -130,6 +138,9 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
       toast.success(t("projects.archivedToast"));
       return;
     }
+    // Row removed because it left the Active-only list (Done / On Hold from
+    // Table or Calendar). Close the drawer when the change came from it.
+    if (leavingActiveList && selectedProjectId === pageId) setSelectedProjectId(null);
     toast.success(t("projects.updateSuccess"));
   };
 
