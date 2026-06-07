@@ -20,6 +20,7 @@ const TABS: Tab[] = [
   { href: ROUTES.pages.clients, label: "nav.clients" },
   { href: ROUTES.pages.areas, label: "nav.areas" },
   { href: ROUTES.pages.resources, label: "nav.resources" },
+  { href: ROUTES.pages.calls, label: "nav.calls" },
 ];
 
 export function TopNav() {

@@ -13,6 +13,7 @@ export const translations = {
   "nav.clients": { de: "Kunden", en: "Clients" },
   "nav.areas": { de: "Bereiche", en: "Areas" },
   "nav.resources": { de: "Ressourcen", en: "Resources" },
+  "nav.calls": { de: "Calls", en: "Calls" },
   "nav.capture": { de: "Erfassen", en: "Capture" },
 
   "locale.de": { de: "DE", en: "DE" },
@@ -975,6 +976,84 @@ export const translations = {
     de: "Konnte nicht gespeichert werden.",
     en: "Could not save.",
   },
+
+  // -- Calls tab --------------------------------------------------------------
+  "calls.title": { de: "Calls", en: "Calls" },
+  "calls.subtitle": {
+    de: "Loom-Link plus Transkript einfügen. Die KI erkennt den Call-Typ, baut die Deliverables und legt eine Call-Notes-Seite in Notion an.",
+    en: "Paste a Loom link plus the transcript. The AI detects the call type, builds the deliverables, and creates a Call Notes page in Notion.",
+  },
+  "calls.form.loomLabel": { de: "Loom-Link (optional)", en: "Loom link (optional)" },
+  "calls.form.loomPlaceholder": {
+    de: "https://www.loom.com/share/…",
+    en: "https://www.loom.com/share/…",
+  },
+  "calls.form.transcriptLabel": { de: "Transkript", en: "Transcript" },
+  "calls.form.transcriptPlaceholder": {
+    de: "Transkript hier einfügen …",
+    en: "Paste the transcript here…",
+  },
+  "calls.form.transcriptRequired": {
+    de: "Transkript wird benötigt.",
+    en: "A transcript is required.",
+  },
+  "calls.form.callTypeLabel": { de: "Call-Typ", en: "Call type" },
+  "calls.form.callTypeAuto": { de: "Automatisch erkennen", en: "Auto-detect" },
+  "calls.form.clientLabel": { de: "Kunde (optional)", en: "Client (optional)" },
+  "calls.form.clientNone": { de: "Kein Kunde", en: "No client" },
+  "calls.form.clientLoading": { de: "Kunden werden geladen …", en: "Loading clients…" },
+  "calls.form.dateLabel": { de: "Datum", en: "Date" },
+  "calls.form.submit": { de: "Analysieren & speichern", en: "Analyse & save" },
+  "calls.form.submitting": { de: "Analysiere …", en: "Analysing…" },
+  "calls.toast.success": {
+    de: "Call-Notes-Seite angelegt.",
+    en: "Call Notes page created.",
+  },
+  "calls.toast.openInNotion": { de: "In Notion öffnen", en: "Open in Notion" },
+  "calls.error.missing_transcript": {
+    de: "Transkript wird benötigt.",
+    en: "A transcript is required.",
+  },
+  "calls.error.generation_failed": {
+    de: "Die KI-Analyse ist fehlgeschlagen. Bitte erneut versuchen.",
+    en: "The AI analysis failed. Please try again.",
+  },
+  "calls.error.parse_failed": {
+    de: "Die KI-Antwort konnte nicht gelesen werden. Bitte erneut versuchen.",
+    en: "Could not read the AI response. Please try again.",
+  },
+  "calls.error.not_configured": {
+    de: "Call Notes ist nicht konfiguriert (NOTION_CALL_NOTES_DB_ID fehlt).",
+    en: "Call Notes is not configured (NOTION_CALL_NOTES_DB_ID is missing).",
+  },
+  "calls.error.notion_not_linked": {
+    de: "Für diesen Kunden gibt es keinen Notion-Datensatz.",
+    en: "No Notion record exists for this client.",
+  },
+  "calls.error.outcome_type_mismatch": {
+    de: "Das Ergebnis passt nicht zum gewählten Call-Typ.",
+    en: "The outcome does not match the selected call type.",
+  },
+  "calls.error.generic": {
+    de: "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    en: "Something went wrong. Please try again.",
+  },
+  "calls.recent.title": { de: "Letzte Calls", en: "Recent calls" },
+  "calls.recent.empty": {
+    de: "Noch keine Calls erfasst.",
+    en: "No calls recorded yet.",
+  },
+  "calls.recent.loading": { de: "Wird geladen …", en: "Loading…" },
+  "calls.recent.loadError": {
+    de: "Calls konnten nicht geladen werden.",
+    en: "Could not load calls.",
+  },
+  "calls.recent.notConfigured": {
+    de: "Call Notes ist nicht konfiguriert.",
+    en: "Call Notes is not configured.",
+  },
+  "calls.recent.open": { de: "Öffnen", en: "Open" },
+  "calls.recent.noDate": { de: "Kein Datum", en: "No date" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

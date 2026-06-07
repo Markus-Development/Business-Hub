@@ -35,6 +35,7 @@ export const ROUTES = {
     areasManage: "/areas/manage",
     areasReview: "/areas/review",
     resources: "/resources",
+    calls: "/calls",
     profile: "/profile",
     capture: "/capture",
     login: "/login",
@@ -111,6 +112,8 @@ export const ROUTES = {
     },
     calls: {
       create: "/api/calls/create",
+      mine: "/api/calls/mine",
+      list: "/api/calls/list",
     },
     auth: {
       login: "/api/auth/login",

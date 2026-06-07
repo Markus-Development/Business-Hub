@@ -1135,6 +1135,43 @@ export async function createCallNote(
   return { id: page.id as string, url: page.url as string };
 }
 
+export type CallNoteSummary = {
+  id: string;
+  name: string;
+  callType: string | null;
+  date: string | null;
+  outcome: string | null;
+  notionUrl: string;
+};
+
+// Lists the most recent Call Notes (default 25), most-recent Date first. Same
+// data_source_id cache + dataSources.query pattern as listResources. Projects
+// only the fields the Calls tab list needs. Throws `call_notes_not_configured`
+// when NOTION_CALL_NOTES_DB_ID is unset (via getCallNotesDataSourceId).
+export async function listCallNotes(limit = 25): Promise<CallNoteSummary[]> {
+  const dataSourceId = await getCallNotesDataSourceId();
+  const resp: any = await notion.dataSources.query({
+    data_source_id: dataSourceId,
+    sorts: [{ property: "Date", direction: "descending" }],
+    page_size: limit,
+  } as any);
+  const notes: CallNoteSummary[] = [];
+  for (const page of resp.results ?? []) {
+    if (page && page.object === "page" && "properties" in page) {
+      const p = page.properties as Record<string, unknown>;
+      notes.push({
+        id: page.id,
+        name: asTitle(p["Name"] as any),
+        callType: asSelect(p["Call Type"] as any),
+        date: asDate(p["Date"] as any),
+        outcome: asSelect(p["Outcome"] as any),
+        notionUrl: page.url,
+      });
+    }
+  }
+  return notes;
+}
+
 // -- Inbox (Quick Capture) ---------------------------------------------------
 
 let inboxDataSourceId: string | null = null;
