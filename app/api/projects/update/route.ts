@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { archiveProjectPage, updateProjectField, type UpdateField } from "@/lib/notion";
-import { PRIORITIES, STATUSES } from "@/constants/priorities";
+import { PRIORITIES } from "@/constants/priorities";
 import { DEPARTMENTS } from "@/constants/departments";
+import { PROJECT_VIEW_STATUSES } from "@/constants/project-views";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   // Intercept: Status -> Archived is not a normal property write — it moves the
   // project to the Archive DB and trashes the source page. This must run BEFORE
   // the Status enum validation below ("Archived" is intentionally NOT in
-  // STATUSES). Every other write falls through to the unchanged logic.
+  // PROJECT_VIEW_STATUSES). Every other write falls through to the unchanged logic.
   if (field === "Status" && value === "Archived") {
     try {
       const { archiveId } = await archiveProjectPage(pageId);
@@ -52,7 +53,11 @@ export async function POST(req: Request) {
   if (field === "Status" || field === "Priority" || field === "Department") {
     if (typeof value !== "string") return bad("invalid_value");
     const allowed =
-      field === "Status" ? STATUSES : field === "Priority" ? PRIORITIES : DEPARTMENTS;
+      field === "Status"
+        ? PROJECT_VIEW_STATUSES
+        : field === "Priority"
+          ? PRIORITIES
+          : DEPARTMENTS;
     if (!(allowed as readonly string[]).includes(value)) return bad("value_not_in_enum");
   } else if (field === "Name" || field === "Next Action") {
     if (typeof value !== "string") return bad("invalid_value");

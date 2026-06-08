@@ -1232,7 +1232,9 @@ export async function listInboxEntries(): Promise<InboxEntry[]> {
     const resp: any = await notion.dataSources.query({
       data_source_id: dataSourceId,
       filter: { property: "Processed", checkbox: { equals: false } },
-      sorts: [{ property: "Captured At", direction: "ascending" }],
+      // Sort by the page's system created_time (FIFO). The Inbox DB has no
+      // "Captured At" property — capture time is page.created_time.
+      sorts: [{ timestamp: "created_time", direction: "ascending" }],
       page_size: 100,
       start_cursor: startCursor,
     } as any);

@@ -8,24 +8,53 @@ import { getUserSettings } from "@/lib/settings";
 import { todayInTz, tzOffsetMs } from "@/lib/tz";
 import { TABLES } from "@/constants/tables";
 import { MODELS } from "@/constants/models";
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "@/constants/translations";
 
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `You are Markus's daily focus coach for Business Hub. Markus is a solo founder.
-Return a concise daily briefing in plain markdown with EXACTLY these three H2 sections, in this order:
+// Section titles + the "nothing qualifies" placeholder, per locale. These are
+// model instructions (the briefing is generated in-language), not UI strings —
+// so they live here in the prompt, not in the translation table.
+const LOCALE_PROMPT: Record<Locale, { language: string; sections: [string, string, string]; none: string }> = {
+  de: {
+    language: "German (Deutsch)",
+    sections: ["Fokus heute", "Überfällig / dringend", "Aufschieben"],
+    none: "Keine",
+  },
+  en: {
+    language: "English",
+    sections: ["Focus today", "Overdue / urgent", "Defer"],
+    none: "None",
+  },
+};
 
-## Focus today
-## Overdue / urgent
-## Defer
+function buildSystemPrompt(locale: Locale): string {
+  const cfg = LOCALE_PROMPT[locale];
+  const [focus, overdue, defer] = cfg.sections;
+  return `You are Markus's daily focus coach for Business Hub. Markus is a solo founder.
+Write the ENTIRE briefing — all prose AND the three section titles — in ${cfg.language}. Do not mix languages.
+Return a concise daily briefing in plain markdown with EXACTLY these three H2 sections, in this order, using these exact titles:
+
+## ${focus}
+## ${overdue}
+## ${defer}
 
 Rules:
 - Total length under 400 words. Be terse.
 - Use short bullet lists. Reference projects by Name. Mention Due Date only when relevant.
-- "Focus today": 2-4 projects that deserve attention now, with a one-line why.
-- "Overdue / urgent": projects whose Due Date is past or imminent. Empty bullet "- None" if nothing qualifies.
-- "Defer": projects that can wait this week. Empty bullet "- None" if nothing qualifies.
+- "${focus}": 2-4 projects that deserve attention now, with a one-line why.
+- "${overdue}": projects whose Due Date is past or imminent. Empty bullet "- ${cfg.none}" if nothing qualifies.
+- "${defer}": projects that can wait this week. Empty bullet "- ${cfg.none}" if nothing qualifies.
 - Do not invent projects. Only reference what the input contains.
 - Plain markdown only. No tables, no images, no HTML.`;
+}
+
+// Coerce an arbitrary value to a supported locale, defaulting to DE.
+function normalizeLocale(value: unknown): Locale {
+  return (LOCALES as readonly string[]).includes(value as string)
+    ? (value as Locale)
+    : DEFAULT_LOCALE;
+}
 
 type TrimmedProject = {
   department: string | null;
@@ -45,6 +74,7 @@ type TrimmedEvent = {
 
 type Inputs = {
   date: string;
+  locale: Locale;
   timezone: string;
   googleConnected: boolean;
   projects: TrimmedProject[];
@@ -74,7 +104,11 @@ function hashInputs(inputs: Inputs): string {
   return createHash("sha256").update(canonicalStringify(inputs)).digest("hex");
 }
 
-async function gatherInputs(timezone: string, calendarId: string): Promise<Inputs> {
+async function gatherInputs(
+  timezone: string,
+  calendarId: string,
+  locale: Locale,
+): Promise<Inputs> {
   const date = todayInTz(timezone);
   const projects = await listActiveProjects();
   const trimmedProjects: TrimmedProject[] = projects.map((p) => ({
@@ -119,6 +153,7 @@ async function gatherInputs(timezone: string, calendarId: string): Promise<Input
 
   return {
     date,
+    locale,
     timezone,
     googleConnected: connected && events !== null,
     projects: trimmedProjects,
@@ -149,15 +184,17 @@ type CachedRow = {
   summary: string;
 };
 
-// Briefings are append-only; the "current" briefing for a (date, kind) is the most
-// recent row. Returns null when no row exists yet for today.
-async function readLatest(date: string): Promise<CachedRow | null> {
+// Briefings are append-only; the "current" briefing for a (date, kind, locale)
+// is the most recent row. Returns null when no row exists yet for today in that
+// locale. Each locale is a distinct cache entry.
+async function readLatest(date: string, locale: Locale): Promise<CachedRow | null> {
   const db = supabaseServer();
   const { data, error } = await db
     .from(TABLES.BRIEFINGS)
     .select("created_at, input_hash, summary")
     .eq("date", date)
     .eq("kind", "daily")
+    .eq("locale", locale)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -169,6 +206,7 @@ async function readLatest(date: string): Promise<CachedRow | null> {
 
 async function insertBriefing(row: {
   date: string;
+  locale: Locale;
   summary: string;
   input_hash: string;
   expires_at: string;
@@ -179,6 +217,7 @@ async function insertBriefing(row: {
     .insert({
       date: row.date,
       kind: "daily",
+      locale: row.locale,
       summary: row.summary,
       model: MODELS.BRIEFING,
       input_hash: row.input_hash,
@@ -191,11 +230,13 @@ async function insertBriefing(row: {
   return (data as { created_at: string }).created_at;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const locale = normalizeLocale(url.searchParams.get("locale"));
     const settings = await getUserSettings();
     const date = todayInTz(settings.timezone);
-    const latest = await readLatest(date);
+    const latest = await readLatest(date, locale);
     if (!latest) return new NextResponse(null, { status: 204 });
     return NextResponse.json({
       summary: latest.summary,
@@ -213,12 +254,14 @@ export async function POST(req: Request) {
   const force = url.searchParams.get("force") === "true";
 
   try {
+    const body = (await req.json().catch(() => ({}))) as { locale?: unknown };
+    const locale = normalizeLocale(body.locale);
     const settings = await getUserSettings();
     const calendarId = settings.master_calendar_id ?? "primary";
-    const inputs = await gatherInputs(settings.timezone, calendarId);
+    const inputs = await gatherInputs(settings.timezone, calendarId, locale);
     const inputHash = hashInputs(inputs);
 
-    const latest = await readLatest(inputs.date);
+    const latest = await readLatest(inputs.date, locale);
     if (!force && latest && latest.input_hash === inputHash) {
       return NextResponse.json({
         summary: latest.summary,
@@ -227,7 +270,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const response = await briefing(buildUserPrompt(inputs), SYSTEM_PROMPT);
+    const response = await briefing(buildUserPrompt(inputs), buildSystemPrompt(locale));
     const summary = extractText(response);
     if (!summary) {
       return NextResponse.json(
@@ -238,6 +281,7 @@ export async function POST(req: Request) {
 
     const createdAt = await insertBriefing({
       date: inputs.date,
+      locale,
       summary,
       input_hash: inputHash,
       expires_at: endOfTodayIso(settings.timezone),

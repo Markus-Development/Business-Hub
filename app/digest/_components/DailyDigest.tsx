@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
+import type { Locale } from "@/constants/translations";
 
 type DigestPayload = {
   cached: boolean;
@@ -15,8 +16,10 @@ type DigestPayload = {
 
 type FetchState = "initial" | "ready" | "empty";
 
-async function fetchDaily(): Promise<DigestPayload | null> {
-  const res = await fetch(ROUTES.api.digest.daily, { cache: "no-store" });
+async function fetchDaily(locale: Locale): Promise<DigestPayload | null> {
+  const res = await fetch(`${ROUTES.api.digest.daily}?locale=${locale}`, {
+    cache: "no-store",
+  });
   if (res.status === 204) return null;
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -25,9 +28,13 @@ async function fetchDaily(): Promise<DigestPayload | null> {
   return (await res.json()) as DigestPayload;
 }
 
-async function postDaily(force: boolean): Promise<DigestPayload> {
+async function postDaily(force: boolean, locale: Locale): Promise<DigestPayload> {
   const url = force ? ROUTES.api.digest.dailyForce : ROUTES.api.digest.daily;
-  const res = await fetch(url, { method: "POST" });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ locale }),
+  });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `http_${res.status}`);
@@ -64,12 +71,19 @@ export function DailyDigest() {
   const tRef = useRef(t);
   tRef.current = t;
 
+  // Refetch when the locale changes (primitive dep → loop-safe; only changes on
+  // user toggle). 204 for a not-yet-generated locale shows the empty/generate
+  // state — never auto-generates. t() is read via tRef so locale-driven t
+  // changes don't double-fire this effect.
   useEffect(() => {
     let cancelled = false;
-    fetchDaily()
+    setState("initial");
+    setJustGenerated(false);
+    fetchDaily(locale)
       .then((data) => {
         if (cancelled) return;
         if (!data) {
+          setPayload(null);
           setState("empty");
           return;
         }
@@ -86,13 +100,13 @@ export function DailyDigest() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   const handleGenerate = useCallback(
     async (force: boolean) => {
       setGenerating(true);
       try {
-        const data = await postDaily(force);
+        const data = await postDaily(force, locale);
         setPayload(data);
         setState("ready");
         setJustGenerated(!data.cached);
@@ -105,7 +119,7 @@ export function DailyDigest() {
         setGenerating(false);
       }
     },
-    [t],
+    [t, locale],
   );
 
   const subtitle = useMemo(() => {
