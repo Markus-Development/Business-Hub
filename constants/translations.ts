@@ -14,6 +14,7 @@ export const translations = {
   "nav.areas": { de: "Bereiche", en: "Areas" },
   "nav.resources": { de: "Ressourcen", en: "Resources" },
   "nav.calls": { de: "Calls", en: "Calls" },
+  "nav.freizeit": { de: "Freizeit", en: "Leisure" },
   "nav.inbox": { de: "Inbox", en: "Inbox" },
   "nav.capture": { de: "Erfassen", en: "Capture" },
 
@@ -675,6 +676,13 @@ export const translations = {
   "areas.focus.title": { de: "Strategischer Fokus", en: "Strategic Focus" },
   "areas.focus.refresh": { de: "Aktualisieren", en: "Refresh" },
   "areas.focus.loading": { de: "Analyse wird geladen …", en: "Loading analysis…" },
+  "areas.category.business": { de: "Business", en: "Business" },
+  "areas.category.privat": { de: "Privat", en: "Personal" },
+  "areas.category.weiterbildung": { de: "Weiterbildung", en: "Education" },
+  "areas.category.none": { de: "Ohne Kategorie", en: "Uncategorized" },
+  "areas.category.count": { de: "{count} Bereiche", en: "{count} areas" },
+  "areas.category.collapse": { de: "Sektion einklappen", en: "Collapse section" },
+  "areas.category.expand": { de: "Sektion ausklappen", en: "Expand section" },
   "areas.field.milestoneDue": { de: "Milestone-Fälligkeitsdatum", en: "Milestone Due" },
   "areas.overdueProjects": { de: "{count} überfällig", en: "{count} overdue" },
   "areas.review": { de: "Areas Review", en: "Areas Review" },
@@ -1205,6 +1213,95 @@ export const translations = {
     en: "Could not generate a suggestion.",
   },
   "inbox.toast.openInNotion": { de: "In Notion öffnen", en: "Open in Notion" },
+
+  // ===== Freizeit (Tab 8) ===================================================
+  "freizeit.title": { de: "Freizeit", en: "Leisure" },
+  "freizeit.search": { de: "Suchen …", en: "Search …" },
+  "freizeit.empty": { de: "Keine Einträge.", en: "No items." },
+  "freizeit.notConfigured": {
+    de: "Freizeit-Datenbank nicht konfiguriert (NOTION_FREIZEIT_DB_ID fehlt).",
+    en: "Leisure database not configured (NOTION_FREIZEIT_DB_ID missing).",
+  },
+  "freizeit.error": {
+    de: "Einträge konnten nicht geladen werden.",
+    en: "Could not load items.",
+  },
+
+  // Categories (must match Notion select options exactly as keys)
+  "freizeit.category.Film": { de: "Film", en: "Film" },
+  "freizeit.category.Serie": { de: "Serie", en: "Series" },
+  "freizeit.category.Videospiel": { de: "Videospiel", en: "Video game" },
+
+  // Statuses (must match Notion select options exactly as keys)
+  "freizeit.status.Offen": { de: "Offen", en: "Open" },
+  "freizeit.status.Läuft": { de: "Läuft", en: "In progress" },
+  "freizeit.status.Erledigt": { de: "Erledigt", en: "Done" },
+
+  // Filters
+  "freizeit.filter.allCategories": { de: "Alle Kategorien", en: "All categories" },
+  "freizeit.filter.active": { de: "Aktiv", en: "Active" },
+  "freizeit.filter.all": { de: "Alle", en: "All" },
+
+  // Columns
+  "freizeit.col.name": { de: "Name", en: "Name" },
+  "freizeit.col.category": { de: "Kategorie", en: "Category" },
+  "freizeit.col.status": { de: "Status", en: "Status" },
+  "freizeit.col.doneDate": { de: "Erledigt am", en: "Done on" },
+  "freizeit.col.note": { de: "Notiz", en: "Note" },
+  "freizeit.col.link": { de: "Link", en: "Link" },
+  "freizeit.col.created": { de: "Hinzugefügt", en: "Added" },
+
+  // Drawer field labels
+  "freizeit.field.category": { de: "Kategorie", en: "Category" },
+  "freizeit.field.status": { de: "Status", en: "Status" },
+  "freizeit.field.doneDate": { de: "Erledigt am", en: "Done on" },
+  "freizeit.field.link": { de: "Link", en: "Link" },
+  "freizeit.field.note": { de: "Notiz", en: "Note" },
+  "freizeit.field.created": { de: "Hinzugefügt", en: "Added" },
+
+  // Add dialog
+  "freizeit.add.button": { de: "Hinzufügen", en: "Add" },
+  "freizeit.add.title": { de: "Neuer Eintrag", en: "New item" },
+  "freizeit.add.description": {
+    de: "Film-, Serien- oder Videospiel-Idee schnell festhalten.",
+    en: "Quickly capture a film, series, or video-game idea.",
+  },
+  "freizeit.add.nameLabel": { de: "Name", en: "Name" },
+  "freizeit.add.namePlaceholder": { de: "Titel …", en: "Title …" },
+  "freizeit.add.nameRequired": { de: "Name ist erforderlich.", en: "Name is required." },
+  "freizeit.add.categoryLabel": { de: "Kategorie", en: "Category" },
+  "freizeit.add.selectCategory": { de: "Kategorie wählen", en: "Select category" },
+  "freizeit.add.linkLabel": { de: "Link", en: "Link" },
+  "freizeit.add.linkPlaceholder": { de: "https://…", en: "https://…" },
+  "freizeit.add.noteLabel": { de: "Notiz", en: "Note" },
+  "freizeit.add.notePlaceholder": { de: "Kurze Notiz …", en: "Short note …" },
+  "freizeit.add.body": { de: "Details", en: "Details" },
+  "freizeit.add.bodyPlaceholder": {
+    de: "Optionale Details (eine Zeile pro Absatz) …",
+    en: "Optional details (one line per paragraph) …",
+  },
+  "freizeit.add.cancel": { de: "Abbrechen", en: "Cancel" },
+  "freizeit.add.submit": { de: "Anlegen", en: "Create" },
+  "freizeit.add.creating": { de: "Wird angelegt …", en: "Creating …" },
+  "freizeit.add.success": { de: "Eintrag angelegt.", en: "Item created." },
+  "freizeit.add.error": {
+    de: "Eintrag konnte nicht angelegt werden.",
+    en: "Could not create item.",
+  },
+
+  // Toasts
+  "freizeit.toast.updateError": {
+    de: "Status konnte nicht aktualisiert werden.",
+    en: "Could not update status.",
+  },
+
+  // Card-grid sections + status shelves + cover.
+  "freizeit.section.filmSeries": { de: "Filme & Serien", en: "Movies & Series" },
+  "freizeit.section.games": { de: "Videospiele", en: "Video games" },
+  "freizeit.shelf.Offen": { de: "Als Nächstes", en: "Up next" },
+  "freizeit.shelf.Läuft": { de: "Läuft gerade", en: "In progress" },
+  "freizeit.shelf.Erledigt": { de: "Erledigt", en: "Done" },
+  "freizeit.cover.alt": { de: "Titelbild", en: "Cover image" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

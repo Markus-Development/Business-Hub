@@ -14,13 +14,13 @@ import {
   Target,
 } from "lucide-react";
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -44,11 +44,20 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPersist: (id: string, field: AreaUpdateField, value: string) => void;
+  activeProjectCount: number;
+  overdueCount: number;
 };
 
 const STATUS_VALUES = ["Active", "Needs Attention", "Paused"] as const;
 
-export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
+export function AreaDialog({
+  area,
+  open,
+  onOpenChange,
+  onPersist,
+  activeProjectCount,
+  overdueCount,
+}: Props) {
   const t = useT();
   const [locale] = useLocale();
 
@@ -57,21 +66,45 @@ export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
     [locale],
   );
 
+  // Same suppression rule as the card had: hide the active-project badge for
+  // paused areas with zero active work; overdue badge still shows independently.
+  const showActiveBadge = !(activeProjectCount === 0 && area?.status === "Paused");
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-[min(90vw,1400px)] flex-col gap-0 p-0 sm:max-w-[min(90vw,1400px)]"
-      >
-        <SheetHeader className="border-b border-border px-5 py-4">
-          <SheetTitle className="sr-only">{area?.name ?? t("areas.title")}</SheetTitle>
-          {area ? (
-            <h2 className="truncate text-lg font-semibold text-foreground">{area.name}</h2>
-          ) : null}
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="truncate pr-8 text-lg font-semibold text-foreground">
+            {area?.name ?? t("areas.title")}
+          </DialogTitle>
+        </DialogHeader>
 
         {area ? (
           <div className="flex-1 overflow-y-auto">
+            {(showActiveBadge || overdueCount > 0) ? (
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+                {showActiveBadge ? (
+                  <Link
+                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
+                    className={cn(
+                      "inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
+                      activeProjectCount === 0 ? "text-muted-foreground" : "text-foreground",
+                    )}
+                  >
+                    {t("areas.activeProjects").replace("{count}", String(activeProjectCount))}
+                  </Link>
+                ) : null}
+                {overdueCount > 0 ? (
+                  <Link
+                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
+                    className="inline-flex items-center rounded-full border border-red-200/50 bg-red-500/15 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-500/25 dark:text-red-300"
+                  >
+                    {t("areas.overdueProjects").replace("{count}", String(overdueCount))}
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+
             <section className="space-y-0.5 border-b border-border px-5 py-3">
               <MetaRow icon={<CircleDashed className="size-3.5" />} label={t("areas.field.status")}>
                 <Select
@@ -160,7 +193,7 @@ export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
           </div>
         ) : null}
 
-        <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-border px-5 py-3 sm:justify-between">
+        <DialogFooter className="mx-0 mb-0 flex-row items-center justify-between gap-2 border-t border-border px-5 py-3 sm:justify-between">
           {area ? (
             <a
               href={area.notionUrl}
@@ -185,15 +218,15 @@ export function AreaDrawer({ area, open, onOpenChange, onPersist }: Props) {
                 </Link>
               </Button>
             ) : null}
-            <SheetClose asChild>
+            <DialogClose asChild>
               <Button variant="outline" size="sm">
                 {t("projects.drawer.close")}
               </Button>
-            </SheetClose>
+            </DialogClose>
           </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -319,9 +352,9 @@ function InlineText({
   );
 }
 
-// Lazy-fetch the Notion page body on drawer open. Cache is per-areaId; the loop
-// guard short-circuits on the *presence* of any entry (including in-flight),
-// not on loaded data — matches the pattern in Standard Prompt Constraints.
+// Lazy-fetch the Notion page body on open. Cache is per-areaId; the loop guard
+// short-circuits on the *presence* of any entry (including in-flight), not on
+// loaded data — matches the pattern in Standard Prompt Constraints.
 function PageBody({ areaId, notionUrl }: { areaId: string; notionUrl: string }) {
   const t = useT();
   const [cache, setCache] = useState<Record<string, { state: "loading" | "loaded" | "error"; blocks: NotionBlock[] }>>(

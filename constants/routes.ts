@@ -36,6 +36,7 @@ export const ROUTES = {
     areasManage: "/areas/manage",
     areasReview: "/areas/review",
     resources: "/resources",
+    freizeit: "/freizeit",
     calls: "/calls",
     profile: "/profile",
     capture: "/capture",
@@ -97,6 +98,12 @@ export const ROUTES = {
       options: "/api/resources/options",
       blocks: (id: string) => `/api/resources/${encodeURIComponent(id)}/blocks`,
       archive: (id: string) => `/api/resources/${encodeURIComponent(id)}/archive`,
+    },
+    freizeit: {
+      list: "/api/freizeit",
+      create: "/api/freizeit/create",
+      item: (id: string) => `/api/freizeit/${encodeURIComponent(id)}`,
+      blocks: (id: string) => `/api/freizeit/${encodeURIComponent(id)}/blocks`,
     },
     google: {
       connect: "/api/google/connect",

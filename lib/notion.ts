@@ -544,6 +544,7 @@ export async function createClientProject(input: {
 export type NotionArea = {
   id: string;
   name: string;
+  category: string | null;
   status: string | null;
   standard: string;
   currentMilestone: string;
@@ -583,6 +584,9 @@ function toArea(page: any): NotionArea {
   return {
     id: page.id,
     name: asTitle(requireProp(p, "Name")),
+    // `Kategorie` is read defensively (direct access, like `Archived`) so an
+    // unconfigured DB doesn't throw — null when the select is absent/empty.
+    category: asSelect(p["Kategorie"]),
     status: asSelect(requireProp(p, "Status")),
     standard: asRichText(requireProp(p, "Standard")),
     currentMilestone: asRichText(requireProp(p, "Current Milestone")),
@@ -1277,4 +1281,192 @@ export async function updateInboxEntry(
     properties.Type = { type: "select", select: patch.type ? { name: patch.type } : null };
   }
   await notion.pages.update({ page_id: pageId, properties: properties as any });
+}
+
+// ===== Freizeit DB =========================================================
+// Leisure tracker (Filme, Serien, Videospiele). NOTION_FREIZEIT_DB_ID must be
+// set; a missing env surfaces a clear error rather than failing silently.
+// Mirrors the Resources DB lazy-cache + data_source_id create pattern.
+
+export type NotionFreizeitItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  status: string | null;
+  doneDate: string | null;
+  link: string | null;
+  note: string | null;
+  cover: string | null;
+  createdTime: string;
+  notionUrl: string;
+};
+
+export type FreizeitDraft = {
+  name: string;
+  category?: string | null;
+  link?: string | null;
+  note?: string | null;
+  cover?: string | null;
+  body?: string;
+};
+
+export type FreizeitUpdateField = "Status" | "Erledigt am" | "Link" | "Notiz" | "Cover";
+
+let freizeitDataSourceId: string | null = null;
+
+async function getFreizeitDataSourceId(): Promise<string> {
+  if (freizeitDataSourceId) return freizeitDataSourceId;
+  const dbId = process.env.NOTION_FREIZEIT_DB_ID;
+  if (!dbId) throw new Error("NOTION_FREIZEIT_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) {
+    throw new Error(
+      "Freizeit DB has no data_sources — is the integration shared with the database?",
+    );
+  }
+  freizeitDataSourceId = ds.id;
+  return ds.id;
+}
+
+function toFreizeitItem(page: any): NotionFreizeitItem {
+  const p = page.properties as Record<string, unknown>;
+  const get = (n: string) => p[n] as any;
+  return {
+    id: page.id,
+    name: asTitle(get("Name")),
+    category: asSelect(get("Kategorie")),
+    status: asSelect(get("Status")),
+    doneDate: asDate(get("Erledigt am")),
+    link: asUrl(get("Link")),
+    note: asRichText(get("Notiz")) || null,
+    // "Cover" is an optional url property added by the cover-art layer; absent on
+    // pre-backfill items, so asUrl defensively returns null.
+    cover: asUrl(get("Cover")),
+    createdTime: page.created_time ?? "",
+    notionUrl: page.url,
+  };
+}
+
+export async function listFreizeit(): Promise<NotionFreizeitItem[]> {
+  const dataSourceId = await getFreizeitDataSourceId();
+  const items: NotionFreizeitItem[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 200 (2 pages) to avoid runaway pagination on an unexpectedly large DB.
+  for (let pageCount = 0; pageCount < 2; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      sorts: [{ timestamp: "created_time", direction: "descending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        items.push(toFreizeitItem(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return items;
+}
+
+export async function createFreizeitItem(draft: FreizeitDraft): Promise<NotionFreizeitItem> {
+  const dataSourceId = await getFreizeitDataSourceId();
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: draft.name } }] },
+    // New items default to "Offen".
+    Status: { type: "select", select: { name: "Offen" } },
+  };
+  if (draft.category) {
+    properties.Kategorie = { type: "select", select: { name: draft.category } };
+  }
+  if (draft.link) {
+    properties.Link = { type: "url", url: draft.link };
+  }
+  if (draft.note) {
+    properties.Notiz = {
+      type: "rich_text",
+      rich_text: [{ type: "text", text: { content: draft.note } }],
+    };
+  }
+  if (draft.cover) {
+    properties.Cover = { type: "url", url: draft.cover };
+  }
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  if (draft.body && draft.body.trim()) {
+    // Non-fatal — same posture as createResource: a body-append failure should
+    // not lose the created item.
+    await appendTextBlocks(page.id, draft.body).catch((err) => {
+      console.warn("[freizeit] append_blocks_failed", err);
+    });
+  }
+  return toFreizeitItem(page);
+}
+
+// Patch a subset of the editable Freizeit fields. `Status` writes as select,
+// `Erledigt am` as date (null clears it), `Link` as url, `Notiz` as rich_text.
+// The "done date" tracker logic (set on Erledigt, clear on un-done) lives in the
+// PATCH route, which passes the resolved doneDate value here.
+export async function updateFreizeitItem(
+  pageId: string,
+  patch: {
+    status?: string;
+    doneDate?: string | null;
+    link?: string | null;
+    note?: string | null;
+    cover?: string | null;
+  },
+): Promise<void> {
+  const properties: Record<string, any> = {};
+  if (patch.status !== undefined) {
+    properties.Status = { type: "select", select: patch.status ? { name: patch.status } : null };
+  }
+  if (patch.doneDate !== undefined) {
+    properties["Erledigt am"] = {
+      type: "date",
+      date: patch.doneDate ? { start: patch.doneDate } : null,
+    };
+  }
+  if (patch.link !== undefined) {
+    properties.Link = { type: "url", url: patch.link ? patch.link : null };
+  }
+  if (patch.note !== undefined) {
+    properties.Notiz = {
+      type: "rich_text",
+      rich_text: patch.note ? [{ type: "text", text: { content: patch.note } }] : [],
+    };
+  }
+  if (patch.cover !== undefined) {
+    properties.Cover = { type: "url", url: patch.cover ? patch.cover : null };
+  }
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
+}
+
+// Ensure the "Cover" (url) property exists on the Freizeit data source. Additive
+// and idempotent — if the property already exists, the update is a no-op (Notion
+// preserves an existing property when you re-send it with the same type). Used by
+// the cover-backfill script so it can run against a DB created before the
+// cover-art layer existed.
+export async function ensureFreizeitCoverProperty(): Promise<void> {
+  const dataSourceId = await getFreizeitDataSourceId();
+  const ds = (await notion.dataSources.retrieve({ data_source_id: dataSourceId })) as any;
+  const props = (ds.properties ?? {}) as Record<string, { type?: string }>;
+  if (props.Cover && props.Cover.type === "url") return; // already present, nothing to do
+  await notion.dataSources.update({
+    data_source_id: dataSourceId,
+    properties: { Cover: { url: {} } },
+  } as any);
+}
+
+// Same block tree shape as Projects/Resources. Thin alias over getPageBlocks so
+// the Freizeit drawer call site signals intent.
+export async function getFreizeitPageBlocks(pageId: string): Promise<NotionBlock[]> {
+  return getPageBlocks(pageId);
 }

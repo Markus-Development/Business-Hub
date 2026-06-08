@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   BookOpen,
   Phone,
+  Gamepad2,
   type LucideIcon,
 } from "lucide-react";
 import { LocaleToggle } from "@/components/LocaleToggle";
@@ -32,6 +33,7 @@ const TABS: Tab[] = [
   { href: ROUTES.pages.areas, label: "nav.areas", icon: LayoutGrid },
   { href: ROUTES.pages.resources, label: "nav.resources", icon: BookOpen },
   { href: ROUTES.pages.calls, label: "nav.calls", icon: Phone },
+  { href: ROUTES.pages.freizeit, label: "nav.freizeit", icon: Gamepad2 },
   { href: ROUTES.pages.inbox, label: "nav.inbox", icon: Inbox },
 ];
 

@@ -7,11 +7,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
+import { AREA_CATEGORIES, type AreaCategory } from "@/constants/area-categories";
+import type { TranslationKey } from "@/constants/translations";
 import type { AreaUpdateField, NotionArea } from "@/lib/notion";
 import { AreaCard } from "./AreaCard";
-import { AreaDrawer } from "./AreaDrawer";
+import { AreaDialog } from "./AreaDialog";
+import { CategorySection } from "./CategorySection";
 
 const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+
+const CATEGORY_LABEL_KEY: Record<AreaCategory, TranslationKey> = {
+  Business: "areas.category.business",
+  Privat: "areas.category.privat",
+  Weiterbildung: "areas.category.weiterbildung",
+};
 
 type Props = {
   areas: NotionArea[];
@@ -84,6 +93,33 @@ export function AreasView({
     [areas, selectedAreaId],
   );
 
+  // Group areas by `Kategorie` in AREA_CATEGORIES order; anything with a null or
+  // unknown category falls into a trailing "Ohne Kategorie" bucket.
+  const sections = useMemo(() => {
+    const known = AREA_CATEGORIES.map((category) => ({
+      key: category as string,
+      label: CATEGORY_LABEL_KEY[category],
+      areas: areas.filter((a) => a.category === category),
+    }));
+    const knownValues = new Set<string>(AREA_CATEGORIES);
+    const uncategorized = areas.filter(
+      (a) => !a.category || !knownValues.has(a.category),
+    );
+    return { known, uncategorized };
+  }, [areas]);
+
+  const renderGrid = (items: NotionArea[]) => (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {items.map((area) => (
+        <AreaCard
+          key={area.id}
+          area={area}
+          onOpen={() => setSelectedAreaId(area.id)}
+        />
+      ))}
+    </div>
+  );
+
   if (notConfigured) {
     return (
       <div className="mx-auto max-w-screen-xl px-6 py-10">
@@ -121,27 +157,40 @@ export function AreasView({
       {areas.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("areas.empty")}</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-          {areas.map((area) => (
-            <AreaCard
-              key={area.id}
-              area={area}
-              activeProjectCount={projectCounts[normalize(area.name)] ?? 0}
-              overdueCount={overdueCounts[normalize(area.name)] ?? 0}
-              onOpen={() => setSelectedAreaId(area.id)}
-              onPersist={(field, value) => persist(area.id, field, value)}
-            />
-          ))}
-        </div>
+        <>
+          {sections.known
+            .filter((section) => section.areas.length > 0)
+            .map((section) => (
+              <CategorySection
+                key={section.key}
+                storageKey={section.key}
+                title={t(section.label)}
+                count={section.areas.length}
+              >
+                {renderGrid(section.areas)}
+              </CategorySection>
+            ))}
+          {sections.uncategorized.length > 0 && (
+            <CategorySection
+              storageKey="none"
+              title={t("areas.category.none")}
+              count={sections.uncategorized.length}
+            >
+              {renderGrid(sections.uncategorized)}
+            </CategorySection>
+          )}
+        </>
       )}
 
-      <AreaDrawer
+      <AreaDialog
         area={selectedArea}
         open={selectedArea !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedAreaId(null);
         }}
         onPersist={persist}
+        activeProjectCount={selectedArea ? projectCounts[normalize(selectedArea.name)] ?? 0 : 0}
+        overdueCount={selectedArea ? overdueCounts[normalize(selectedArea.name)] ?? 0 : 0}
       />
     </div>
   );
