@@ -1040,6 +1040,25 @@ export const translations = {
     en: "Could not save.",
   },
 
+  // -- Voice input (mic) ------------------------------------------------------
+  "voice.start": { de: "Sprechen", en: "Speak" },
+  "voice.stop": { de: "Stopp", en: "Stop" },
+  "voice.listening": { de: "Höre zu …", en: "Listening…" },
+  "voice.unsupported": {
+    de: "Spracheingabe wird in diesem Browser nicht unterstützt.",
+    en: "Voice input is not supported in this browser.",
+  },
+  "voice.permissionDenied": {
+    de: "Mikrofon-Zugriff verweigert. Bitte in den Browser-Einstellungen erlauben.",
+    en: "Microphone access denied. Please allow it in your browser settings.",
+  },
+  "voice.error": {
+    de: "Spracheingabe fehlgeschlagen.",
+    en: "Voice input failed.",
+  },
+  "voice.lang.de": { de: "DE", en: "DE" },
+  "voice.lang.en": { de: "EN", en: "EN" },
+
   // -- Calls tab --------------------------------------------------------------
   "calls.title": { de: "Calls", en: "Calls" },
   "calls.subtitle": {

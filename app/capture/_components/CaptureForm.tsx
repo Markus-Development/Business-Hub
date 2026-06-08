@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LocaleToggle } from "@/components/LocaleToggle";
+import { VoiceInput } from "@/components/VoiceInput";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/constants/routes";
@@ -25,6 +26,12 @@ export function CaptureForm() {
   const [text, setText] = useState("");
   const [type, setType] = useState<InboxType>("Task");
   const [submitting, setSubmitting] = useState(false);
+
+  function appendTranscript(segment: string) {
+    setText((prev) => (prev ? `${prev} ${segment}` : segment));
+    // Keep focus in the textarea for immediate manual edits after dictation.
+    textRef.current?.focus();
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +78,8 @@ export function CaptureForm() {
       <p className="mt-1 text-sm text-muted-foreground">{t("capture.subtitle")}</p>
 
       <form onSubmit={onSubmit} className="mt-5 flex flex-1 flex-col gap-4">
+        <VoiceInput onTranscript={appendTranscript} />
+
         <textarea
           ref={textRef}
           value={text}
