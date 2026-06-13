@@ -29,6 +29,7 @@ export const ROUTES = {
     home: "/",
     inbox: "/inbox",
     projects: "/projects",
+    development: "/development",
     digest: "/digest",
     calendar: "/calendar",
     clients: "/clients",
@@ -37,6 +38,8 @@ export const ROUTES = {
     areasReview: "/areas/review",
     resources: "/resources",
     freizeit: "/freizeit",
+    buecher: "/buecher",
+    journal: "/journal",
     calls: "/calls",
     profile: "/profile",
     capture: "/capture",
@@ -51,6 +54,9 @@ export const ROUTES = {
       blocks: projectBlocks,
       options: "/api/projects/options",
       suggest: "/api/projects/suggest",
+    },
+    development: {
+      list: "/api/development",
     },
     digest: {
       daily: "/api/digest/daily",
@@ -104,6 +110,16 @@ export const ROUTES = {
       create: "/api/freizeit/create",
       item: (id: string) => `/api/freizeit/${encodeURIComponent(id)}`,
       blocks: (id: string) => `/api/freizeit/${encodeURIComponent(id)}/blocks`,
+    },
+    buecher: {
+      list: "/api/buecher",
+      create: "/api/buecher/create",
+      item: (id: string) => `/api/buecher/${encodeURIComponent(id)}`,
+      blocks: (id: string) => `/api/buecher/${encodeURIComponent(id)}/blocks`,
+    },
+    // Weekly Journal — read-only. One endpoint returns both weeks + wins.
+    journal: {
+      list: "/api/journal",
     },
     google: {
       connect: "/api/google/connect",

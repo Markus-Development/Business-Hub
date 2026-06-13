@@ -8,6 +8,7 @@ export const translations = {
   "app.title": { de: "Business Hub", en: "Business Hub" },
 
   "nav.projects": { de: "Projekte", en: "Projects" },
+  "nav.development": { de: "Entwicklung", en: "Development" },
   "nav.digest": { de: "KI-Briefing", en: "AI Digest" },
   "nav.calendar": { de: "Kalender", en: "Calendar" },
   "nav.clients": { de: "Kunden", en: "Clients" },
@@ -15,6 +16,8 @@ export const translations = {
   "nav.resources": { de: "Ressourcen", en: "Resources" },
   "nav.calls": { de: "Calls", en: "Calls" },
   "nav.freizeit": { de: "Freizeit", en: "Leisure" },
+  "nav.buecher": { de: "Bücher", en: "Books" },
+  "nav.journal": { de: "Journal", en: "Journal" },
   "nav.inbox": { de: "Inbox", en: "Inbox" },
   "nav.capture": { de: "Erfassen", en: "Capture" },
 
@@ -1302,6 +1305,158 @@ export const translations = {
   "freizeit.shelf.Läuft": { de: "Läuft gerade", en: "In progress" },
   "freizeit.shelf.Erledigt": { de: "Erledigt", en: "Done" },
   "freizeit.cover.alt": { de: "Titelbild", en: "Cover image" },
+
+  // ===== Bücher (Tab 9) ====================================================
+  "buecher.title": { de: "Bücher", en: "Books" },
+  "buecher.search": { de: "Titel oder Autor suchen …", en: "Search title or author …" },
+  "buecher.empty": { de: "Keine Bücher.", en: "No books." },
+  "buecher.notConfigured": {
+    de: "Bücher-Datenbank ist nicht konfiguriert (NOTION_BUCHER_DB_ID fehlt).",
+    en: "Books database is not configured (NOTION_BUCHER_DB_ID missing).",
+  },
+  "buecher.error": {
+    de: "Bücher konnten nicht geladen werden.",
+    en: "Could not load books.",
+  },
+  // Status labels (also used as the editable Status select options).
+  "buecher.status.Gelesen": { de: "Gelesen", en: "Read" },
+  "buecher.status.Aktuell": { de: "Aktuell", en: "Reading" },
+  "buecher.status.Demnächst": { de: "Demnächst", en: "Up next" },
+  // Shelf headings (one per status, top → bottom).
+  "buecher.shelf.Gelesen": { de: "Gelesen", en: "Read" },
+  "buecher.shelf.Aktuell": { de: "Lese ich gerade", en: "Currently reading" },
+  "buecher.shelf.Demnächst": { de: "Leseliste", en: "Reading list" },
+  // Filters.
+  "buecher.filter.allTags": { de: "Alle Tags", en: "All tags" },
+  "buecher.filter.all": { de: "Alle", en: "All" },
+  // Field labels (card + drawer).
+  "buecher.field.author": { de: "Autor", en: "Author" },
+  "buecher.field.status": { de: "Status", en: "Status" },
+  "buecher.field.startDate": { de: "Begonnen", en: "Started" },
+  "buecher.field.endDate": { de: "Beendet", en: "Finished" },
+  "buecher.field.tags": { de: "Tags", en: "Tags" },
+  "buecher.field.link": { de: "Link", en: "Link" },
+  "buecher.field.note": { de: "Notiz", en: "Note" },
+  "buecher.field.created": { de: "Hinzugefügt", en: "Added" },
+  "buecher.cover.alt": { de: "Buchcover", en: "Book cover" },
+  // Add dialog.
+  "buecher.add.button": { de: "Hinzufügen", en: "Add" },
+  "buecher.add.title": { de: "Neues Buch", en: "New book" },
+  "buecher.add.description": {
+    de: "Buch zur Bibliothek hinzufügen. Status startet auf „Demnächst“.",
+    en: "Add a book to your library. Status starts as “Up next”.",
+  },
+  "buecher.add.nameLabel": { de: "Titel", en: "Title" },
+  "buecher.add.namePlaceholder": { de: "Buchtitel …", en: "Book title …" },
+  "buecher.add.nameRequired": { de: "Titel ist erforderlich.", en: "Title is required." },
+  "buecher.add.authorLabel": { de: "Autor", en: "Author" },
+  "buecher.add.authorPlaceholder": { de: "Autor …", en: "Author …" },
+  "buecher.add.tagsLabel": { de: "Tags", en: "Tags" },
+  "buecher.add.linkLabel": { de: "Link", en: "Link" },
+  "buecher.add.linkPlaceholder": { de: "https://…", en: "https://…" },
+  "buecher.add.noteLabel": { de: "Notiz", en: "Note" },
+  "buecher.add.notePlaceholder": { de: "Kurze Notiz …", en: "Short note …" },
+  "buecher.add.body": { de: "Details", en: "Details" },
+  "buecher.add.bodyPlaceholder": {
+    de: "Optionale Notizen zum Buch …",
+    en: "Optional notes about the book …",
+  },
+  "buecher.add.cancel": { de: "Abbrechen", en: "Cancel" },
+  "buecher.add.submit": { de: "Anlegen", en: "Create" },
+  "buecher.add.creating": { de: "Wird angelegt …", en: "Creating …" },
+  "buecher.add.success": { de: "Buch angelegt.", en: "Book created." },
+  "buecher.add.error": {
+    de: "Buch konnte nicht angelegt werden.",
+    en: "Could not create book.",
+  },
+  "buecher.toast.updateError": {
+    de: "Aktualisierung fehlgeschlagen.",
+    en: "Update failed.",
+  },
+
+  // ===== Development tab (Tab 10) =====
+  "development.title": { de: "Entwicklung", en: "Development" },
+  "development.subtitle": {
+    de: "Dev-Arbeit pro Produkt — Business Hub, EasyFinance, Familien-Stammbaum.",
+    en: "Dev work by product — Business Hub, EasyFinance, Familien-Stammbaum.",
+  },
+  "development.noProduct": { de: "Ohne Produkt", en: "No product" },
+  "development.noDevType": { de: "Ohne Typ", en: "No type" },
+  "development.unnamed": { de: "(ohne Titel)", en: "(untitled)" },
+  "development.statusLabel": { de: "Status", en: "Status" },
+  // Status-filter bucket labels (development.bucket.active / .done reuse status.*).
+  "development.bucket.all": { de: "Alle", en: "All" },
+  "development.bucket.backlog": { de: "Backlog", en: "Backlog" },
+  "development.bucket.notRelevant": { de: "Nicht relevant", en: "Not relevant" },
+  "development.filter.allTypes": { de: "Alle Typen", en: "All types" },
+  "development.filter.allStatuses": { de: "Alle Status", en: "All statuses" },
+  "development.search.placeholder": { de: "Nach Name suchen …", en: "Search by name …" },
+  "development.empty": {
+    de: "Keine Entwicklungsaufgaben gefunden.",
+    en: "No development items found.",
+  },
+  "development.notConfigured": {
+    de: "Projekt-Datenbank ist nicht konfiguriert.",
+    en: "Projects database is not configured.",
+  },
+  "development.error": {
+    de: "Entwicklungsaufgaben konnten nicht geladen werden.",
+    en: "Could not load development items.",
+  },
+  "development.updateError": {
+    de: "Aktualisierung fehlgeschlagen.",
+    en: "Update failed.",
+  },
+
+  // ===== Weekly Journal (read-only) =====
+  "journal.title": { de: "Weekly Journal", en: "Weekly Journal" },
+  "journal.subtitle": {
+    de: "Wochen-Rückblick: deine Erfolge pro Woche und pro Bereich.",
+    en: "Weekly review: your wins per week and per area.",
+  },
+  "journal.notConfigured": {
+    de: "Weekly Journal ist nicht konfiguriert (NOTION_WEEKLY_JOURNAL_DB_ID / NOTION_ERFOLGE_DB_ID fehlt).",
+    en: "Weekly Journal is not configured (NOTION_WEEKLY_JOURNAL_DB_ID / NOTION_ERFOLGE_DB_ID missing).",
+  },
+  "journal.error": {
+    de: "Weekly Journal konnte nicht geladen werden.",
+    en: "Could not load the Weekly Journal.",
+  },
+  // View toggle
+  "journal.view.week": { de: "Woche", en: "Week" },
+  "journal.view.timeline": { de: "Bereich-Timeline", en: "Area timeline" },
+  // Week switcher
+  "journal.week.prev": { de: "Vorige Woche", en: "Previous week" },
+  "journal.week.next": { de: "Nächste Woche", en: "Next week" },
+  "journal.week.today": { de: "Diese Woche", en: "This week" },
+  "journal.week.statusBadge": { de: "Status: {status}", en: "Status: {status}" },
+  "journal.week.noEntry": {
+    de: "Für diese Woche existiert noch keine Journal-Woche in Notion.",
+    en: "No journal week exists in Notion for this week yet.",
+  },
+  "journal.week.empty": {
+    de: "Keine Erfolge für diese Woche erfasst.",
+    en: "No wins recorded for this week.",
+  },
+  // Kanban columns are the Kategorie values (Business/Privat/Weiterbildung) —
+  // rendered verbatim, no per-column translation key needed.
+  "journal.kanban.columnCount": { de: "{count}", en: "{count}" },
+  "journal.card.noArea": { de: "Kein Bereich", en: "No area" },
+  // Area timeline
+  "journal.timeline.areaLabel": { de: "Bereich", en: "Area" },
+  "journal.timeline.allAreas": { de: "Alle Bereiche", en: "All areas" },
+  "journal.timeline.empty": {
+    de: "Keine Erfolge für diesen Bereich.",
+    en: "No wins for this area.",
+  },
+  "journal.timeline.unscheduled": { de: "Ohne Woche", en: "No week" },
+  // Overdue banner
+  "journal.overdue.title": { de: "Wochenrückblick offen", en: "Weekly review pending" },
+  "journal.overdue.body": {
+    de: "Die aktuelle Woche ({kw}) ist noch nicht abgeschlossen. Trag deinen Rückblick in Notion ein.",
+    en: "The current week ({kw}) is not closed yet. Add your review in Notion.",
+  },
+  "journal.overdue.cta": { de: "In Notion öffnen", en: "Open in Notion" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

@@ -7,11 +7,14 @@ import {
   Plug,
   Inbox,
   FolderKanban,
+  Code2,
   Sparkles,
   CalendarDays,
   Users,
   LayoutGrid,
   BookOpen,
+  BookMarked,
+  NotebookPen,
   Phone,
   Gamepad2,
   type LucideIcon,
@@ -27,6 +30,7 @@ type Tab = { href: string; label: TranslationKey; icon: LucideIcon };
 
 const TABS: Tab[] = [
   { href: ROUTES.pages.projects, label: "nav.projects", icon: FolderKanban },
+  { href: ROUTES.pages.development, label: "nav.development", icon: Code2 },
   { href: ROUTES.pages.digest, label: "nav.digest", icon: Sparkles },
   { href: ROUTES.pages.calendar, label: "nav.calendar", icon: CalendarDays },
   { href: ROUTES.pages.clients, label: "nav.clients", icon: Users },
@@ -34,6 +38,8 @@ const TABS: Tab[] = [
   { href: ROUTES.pages.resources, label: "nav.resources", icon: BookOpen },
   { href: ROUTES.pages.calls, label: "nav.calls", icon: Phone },
   { href: ROUTES.pages.freizeit, label: "nav.freizeit", icon: Gamepad2 },
+  { href: ROUTES.pages.buecher, label: "nav.buecher", icon: BookMarked },
+  { href: ROUTES.pages.journal, label: "nav.journal", icon: NotebookPen },
   { href: ROUTES.pages.inbox, label: "nav.inbox", icon: Inbox },
 ];
 

@@ -14,6 +14,7 @@ import type {
 } from "@/constants/call-notes";
 import type { InboxType } from "@/constants/inbox";
 import { PROJECT_VIEW_STATUSES } from "@/constants/project-views";
+import { mapWeek, mapErfolg, type JournalWeek, type Erfolg } from "@/lib/journal";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -36,6 +37,11 @@ export type Project = {
   estimatedMinutes: number | null;
   client: string;
   createdAt: string;
+  // Development-tab metadata (Projects DB `Product` / `Dev Type` selects).
+  // Read defensively (not via requireProp) so the field is purely additive —
+  // existing helpers keep working and a page without the property maps to null.
+  product: string | null;
+  devType: string | null;
 };
 
 export type ProjectDraft = {
@@ -128,6 +134,10 @@ function toProject(page: any): Project {
     estimatedMinutes: asNumber(requireProp(p, "Estimated Minutes")),
     client: asRichText(requireProp(p, "Client")),
     createdAt: page.created_time ?? "",
+    // Additive — read without requireProp so a page missing the property maps to
+    // null instead of throwing (keeps every existing helper working).
+    product: asSelect(p["Product"]),
+    devType: asSelect(p["Dev Type"]),
   };
 }
 
@@ -171,6 +181,32 @@ export async function listProjectsForViews(): Promise<Project[]> {
           status: { equals: status },
         })),
       },
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        projects.push(toProject(page));
+      }
+    }
+    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (startCursor);
+  return projects;
+}
+
+// Loads every project flagged as dev work (Department select = "Development"),
+// across all statuses, for the Development tab. Same projection/mapping as
+// `listActiveProjects` (toProject reads only the named properties — incl. the
+// additive `Product` / `Dev Type` selects). Department is a `select` property,
+// so the filter uses `select.equals` (not `status.equals`).
+export async function listDevelopmentProjects(): Promise<Project[]> {
+  const dataSourceId = await getProjectsDataSourceId();
+  const projects: Project[] = [];
+  let startCursor: string | undefined = undefined;
+  do {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: { property: "Department", select: { equals: "Development" } },
       page_size: 100,
       start_cursor: startCursor,
     } as any);
@@ -1469,4 +1505,328 @@ export async function ensureFreizeitCoverProperty(): Promise<void> {
 // the Freizeit drawer call site signals intent.
 export async function getFreizeitPageBlocks(pageId: string): Promise<NotionBlock[]> {
   return getPageBlocks(pageId);
+}
+
+// ===== Bücher DB ===========================================================
+// Personal library tracker (Buchtitel, Autor, Lese-Status, Tags). NOTION_BUCHER_DB_ID
+// must be set; a missing env surfaces a clear error rather than failing silently.
+// Mirrors the Freizeit DB lazy-cache + data_source_id create pattern.
+
+export type NotionBuch = {
+  id: string;
+  name: string;
+  author: string | null;
+  status: string | null;
+  tags: string[];
+  startDate: string | null;
+  endDate: string | null;
+  link: string | null;
+  note: string | null;
+  cover: string | null;
+  createdTime: string;
+  notionUrl: string;
+};
+
+export type BuchDraft = {
+  name: string;
+  author?: string | null;
+  tags?: string[] | null;
+  link?: string | null;
+  note?: string | null;
+  cover?: string | null;
+  body?: string;
+};
+
+export type BuchUpdateField =
+  | "Status"
+  | "Startdatum"
+  | "Enddatum"
+  | "Link"
+  | "Notiz"
+  | "Cover";
+
+let bucherDataSourceId: string | null = null;
+
+async function getBucherDataSourceId(): Promise<string> {
+  if (bucherDataSourceId) return bucherDataSourceId;
+  const dbId = process.env.NOTION_BUCHER_DB_ID;
+  if (!dbId) throw new Error("NOTION_BUCHER_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) {
+    throw new Error(
+      "Bücher DB has no data_sources — is the integration shared with the database?",
+    );
+  }
+  bucherDataSourceId = ds.id;
+  return ds.id;
+}
+
+function toBuch(page: any): NotionBuch {
+  const p = page.properties as Record<string, unknown>;
+  const get = (n: string) => p[n] as any;
+  return {
+    id: page.id,
+    name: asTitle(get("Name")),
+    author: asRichText(get("Autor")) || null,
+    status: asSelect(get("Status")),
+    tags: asMultiSelect(get("Tags")),
+    startDate: asDate(get("Startdatum")),
+    endDate: asDate(get("Enddatum")),
+    link: asUrl(get("Link")),
+    note: asRichText(get("Notiz")) || null,
+    // "Cover" is an optional url property added by the cover-art layer; absent on
+    // pre-resolve items, so asUrl defensively returns null.
+    cover: asUrl(get("Cover")),
+    createdTime: page.created_time ?? "",
+    notionUrl: page.url,
+  };
+}
+
+export async function listBuecher(): Promise<NotionBuch[]> {
+  const dataSourceId = await getBucherDataSourceId();
+  const items: NotionBuch[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 200 (2 pages) to avoid runaway pagination on an unexpectedly large DB.
+  for (let pageCount = 0; pageCount < 2; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      sorts: [{ timestamp: "created_time", direction: "descending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        items.push(toBuch(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return items;
+}
+
+// Retrieve a single Bücher page as a NotionBuch. Used by the PATCH route's
+// "stamp date only if currently empty" logic — additive, mirrors the toBuch
+// projection used by listBuecher.
+export async function getBuch(pageId: string): Promise<NotionBuch> {
+  const page = (await notion.pages.retrieve({ page_id: pageId })) as any;
+  return toBuch(page);
+}
+
+export async function createBuch(draft: BuchDraft): Promise<NotionBuch> {
+  const dataSourceId = await getBucherDataSourceId();
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: draft.name } }] },
+    // New books default to "Demnächst".
+    Status: { type: "select", select: { name: "Demnächst" } },
+  };
+  if (draft.author) {
+    properties.Autor = {
+      type: "rich_text",
+      rich_text: [{ type: "text", text: { content: draft.author } }],
+    };
+  }
+  if (draft.tags && draft.tags.length > 0) {
+    properties.Tags = {
+      type: "multi_select",
+      multi_select: draft.tags.map((name) => ({ name })),
+    };
+  }
+  if (draft.link) {
+    properties.Link = { type: "url", url: draft.link };
+  }
+  if (draft.note) {
+    properties.Notiz = {
+      type: "rich_text",
+      rich_text: [{ type: "text", text: { content: draft.note } }],
+    };
+  }
+  if (draft.cover) {
+    properties.Cover = { type: "url", url: draft.cover };
+  }
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  if (draft.body && draft.body.trim()) {
+    // Non-fatal — same posture as createFreizeitItem: a body-append failure
+    // should not lose the created item.
+    await appendTextBlocks(page.id, draft.body).catch((err) => {
+      console.warn("[buecher] append_blocks_failed", err);
+    });
+  }
+  return toBuch(page);
+}
+
+// Patch a subset of the editable Bücher fields. `Status` writes as select,
+// `Startdatum`/`Enddatum` as date (null clears them), `Link` as url, `Notiz` as
+// rich_text, `Cover` as url. The "reading-date" tracker logic (set on
+// Aktuell/Gelesen only when empty) lives in the PATCH route, which passes the
+// resolved startDate/endDate values here.
+export async function updateBuch(
+  pageId: string,
+  patch: {
+    status?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    link?: string | null;
+    note?: string | null;
+    cover?: string | null;
+  },
+): Promise<void> {
+  const properties: Record<string, any> = {};
+  if (patch.status !== undefined) {
+    properties.Status = { type: "select", select: patch.status ? { name: patch.status } : null };
+  }
+  if (patch.startDate !== undefined) {
+    properties.Startdatum = {
+      type: "date",
+      date: patch.startDate ? { start: patch.startDate } : null,
+    };
+  }
+  if (patch.endDate !== undefined) {
+    properties.Enddatum = {
+      type: "date",
+      date: patch.endDate ? { start: patch.endDate } : null,
+    };
+  }
+  if (patch.link !== undefined) {
+    properties.Link = { type: "url", url: patch.link ? patch.link : null };
+  }
+  if (patch.note !== undefined) {
+    properties.Notiz = {
+      type: "rich_text",
+      rich_text: patch.note ? [{ type: "text", text: { content: patch.note } }] : [],
+    };
+  }
+  if (patch.cover !== undefined) {
+    properties.Cover = { type: "url", url: patch.cover ? patch.cover : null };
+  }
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
+}
+
+// Ensure the "Cover" (url) property exists on the Bücher data source. Additive
+// and idempotent — if the property already exists, the update is a no-op (Notion
+// preserves an existing property when you re-send it with the same type).
+export async function ensureBuchCoverProperty(): Promise<void> {
+  const dataSourceId = await getBucherDataSourceId();
+  const ds = (await notion.dataSources.retrieve({ data_source_id: dataSourceId })) as any;
+  const props = (ds.properties ?? {}) as Record<string, { type?: string }>;
+  if (props.Cover && props.Cover.type === "url") return; // already present, nothing to do
+  await notion.dataSources.update({
+    data_source_id: dataSourceId,
+    properties: { Cover: { url: {} } },
+  } as any);
+}
+
+// Same block tree shape as Projects/Resources. Thin alias over getPageBlocks so
+// the Bücher drawer call site signals intent.
+export async function getBuchPageBlocks(pageId: string): Promise<NotionBlock[]> {
+  return getPageBlocks(pageId);
+}
+
+// ===========================================================================
+// Weekly Journal (read-only Tab) — two source DBs:
+//   • Weekly Journal (NOTION_WEEKLY_JOURNAL_DB_ID) — one row per ISO week.
+//   • Erfolge        (NOTION_ERFOLGE_DB_ID)        — one row per win.
+// The Erfolge "Woche" relation points back at a Weekly-Journal page id.
+//
+// READ-ONLY: there are no create/update helpers here — capture stays in Notion.
+// The pure mappers (mapWeek / mapErfolg) + all DTO types live in lib/journal.ts
+// so they can be unit-tested without the server-only Notion client. These
+// functions only do the data_source query + pagination, then map each page.
+// Mirrors the listFreizeit / listBuecher resolver pattern.
+// ===========================================================================
+
+let journalWeeksDataSourceId: string | null = null;
+
+async function getJournalWeeksDataSourceId(): Promise<string> {
+  if (journalWeeksDataSourceId) return journalWeeksDataSourceId;
+  const dbId = process.env.NOTION_WEEKLY_JOURNAL_DB_ID;
+  if (!dbId) throw new Error("NOTION_WEEKLY_JOURNAL_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) {
+    throw new Error(
+      "Weekly Journal DB has no data_sources — is the integration shared with the database?",
+    );
+  }
+  journalWeeksDataSourceId = ds.id;
+  return ds.id;
+}
+
+let erfolgeDataSourceId: string | null = null;
+
+async function getErfolgeDataSourceId(): Promise<string> {
+  if (erfolgeDataSourceId) return erfolgeDataSourceId;
+  const dbId = process.env.NOTION_ERFOLGE_DB_ID;
+  if (!dbId) throw new Error("NOTION_ERFOLGE_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) {
+    throw new Error(
+      "Erfolge DB has no data_sources — is the integration shared with the database?",
+    );
+  }
+  erfolgeDataSourceId = ds.id;
+  return ds.id;
+}
+
+// All Weekly-Journal rows, newest week first (by "Woche (Start)"). Mapped via the
+// pure mapWeek().
+export async function listJournalWeeks(): Promise<JournalWeek[]> {
+  const dataSourceId = await getJournalWeeksDataSourceId();
+  const weeks: JournalWeek[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 5 pages (500 rows) — far above the expected one-row-per-week volume.
+  for (let pageCount = 0; pageCount < 5; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      sorts: [{ property: "Woche (Start)", direction: "descending" }],
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        weeks.push(mapWeek(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return weeks;
+}
+
+// All Erfolge (wins), each carrying its Weekly-Journal relation id(s). Mapped via
+// the pure mapErfolg().
+export async function listErfolge(): Promise<Erfolg[]> {
+  const dataSourceId = await getErfolgeDataSourceId();
+  const items: Erfolg[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 10 pages (1000 wins) — generous headroom for a multi-year history.
+  for (let pageCount = 0; pageCount < 10; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        items.push(mapErfolg(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return items;
 }
