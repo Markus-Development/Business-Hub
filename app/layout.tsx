@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/i18n";
 import { TopNav } from "@/components/TopNav";
+import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -33,9 +34,19 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <LocaleProvider>
           <TopNav />
-          <main className="flex-1 mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 sm:py-6">
-            {children}
-          </main>
+          <div className="flex flex-1">
+            {/* Left sidebar on >= sm. Below sm it lives inside the TopNav
+                hamburger Sheet. Sticky below the 3.5rem-tall header so it
+                scrolls independently of the main content. */}
+            <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 border-r border-border sm:block">
+              <Sidebar />
+            </aside>
+            <main className="min-w-0 flex-1">
+              <div className="mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 sm:py-6">
+                {children}
+              </div>
+            </main>
+          </div>
           <Toaster richColors closeButton position="top-right" />
         </LocaleProvider>
       </body>

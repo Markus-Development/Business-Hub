@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { appendTextBlocks, createProject, type ProjectDraft } from "@/lib/notion";
 import { PRIORITIES, STATUSES, type Priority, type Status } from "@/constants/priorities";
 import { DEPARTMENTS } from "@/constants/departments";
+import { PRODUCTS, DEV_TYPES } from "@/constants/development";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,8 @@ type Body = {
   dueDate?: unknown;
   nextAction?: unknown;
   body?: unknown;
+  product?: unknown;
+  devType?: unknown;
 };
 
 function bad(error: string) {
@@ -27,7 +30,7 @@ export async function POST(req: Request) {
     return bad("invalid_json");
   }
 
-  const { name, status, department, priority, dueDate, nextAction, body: pageBody } = body;
+  const { name, status, department, priority, dueDate, nextAction, body: pageBody, product, devType } = body;
 
   if (typeof name !== "string" || name.trim().length === 0) return bad("missing_name");
   if (typeof status !== "string" || !(STATUSES as readonly string[]).includes(status)) return bad("invalid_status");
@@ -41,6 +44,18 @@ export async function POST(req: Request) {
   if (pageBody !== undefined && pageBody !== null && typeof pageBody !== "string") {
     return bad("invalid_body");
   }
+  // `product` / `devType` are optional + additive (Development tab). When present
+  // they must be a valid Notion select option; otherwise they're left unwritten.
+  if (product !== undefined && product !== null && product !== "") {
+    if (typeof product !== "string" || !(PRODUCTS as readonly string[]).includes(product)) {
+      return bad("invalid_product");
+    }
+  }
+  if (devType !== undefined && devType !== null && devType !== "") {
+    if (typeof devType !== "string" || !(DEV_TYPES as readonly string[]).includes(devType)) {
+      return bad("invalid_dev_type");
+    }
+  }
 
   const draft: ProjectDraft = {
     name: name.trim(),
@@ -49,6 +64,8 @@ export async function POST(req: Request) {
     priority: priority as Priority,
     dueDate: dueDate ? (dueDate as string) : null,
     nextAction,
+    product: typeof product === "string" && product ? product : null,
+    devType: typeof devType === "string" && devType ? devType : null,
   };
 
   try {

@@ -24,6 +24,11 @@ type Props = {
   // Single shared width for all option-badge cells in the table so columns line up
   // and no size jump happens when the colour map for an option changes.
   widthClass?: string;
+  // Colour resolvers for the pill. Default to the Notion option-colour maps; the
+  // Priority column overrides them with the priority traffic-light maps so red /
+  // amber / green pills reuse this same component instead of a duplicate.
+  bgFor?: (color: string | null) => string;
+  textFor?: (color: string | null) => string;
 };
 
 // A Select whose trigger and dropdown items render the selected option as a
@@ -36,6 +41,8 @@ export function OptionBadgeSelect({
   onChange,
   placeholder,
   widthClass = "w-[150px]",
+  bgFor = notionColourBg,
+  textFor = notionColourText,
 }: Props) {
   const selected = options.find((o) => o.value === value) ?? null;
 
@@ -46,8 +53,8 @@ export function OptionBadgeSelect({
           {selected ? (
             <span
               style={{
-                background: notionColourBg(selected.color),
-                color: notionColourText(selected.color),
+                background: bgFor(selected.color),
+                color: textFor(selected.color),
               }}
               className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
             >
@@ -63,8 +70,8 @@ export function OptionBadgeSelect({
           <SelectItem key={o.value} value={o.value}>
             <span
               style={{
-                background: notionColourBg(o.color),
-                color: notionColourText(o.color),
+                background: bgFor(o.color),
+                color: textFor(o.color),
               }}
               className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
             >

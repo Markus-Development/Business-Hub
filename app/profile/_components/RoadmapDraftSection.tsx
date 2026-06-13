@@ -112,19 +112,20 @@ export function RoadmapDraftSection() {
   };
 
   return (
-    <section className="mt-10">
-      <h2 className="text-lg font-semibold text-foreground">{t("profile.roadmap.title")}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{t("profile.roadmap.description")}</p>
-
-      {(phase === "idle" || phase === "drafting") && (
-        <div className="mt-4">
-          <Button onClick={runDraft} disabled={phase === "drafting"}>
+    <section>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">{t("profile.roadmap.title")}</h3>
+          <p className="text-xs text-muted-foreground">{t("profile.roadmap.description")}</p>
+        </div>
+        {(phase === "idle" || phase === "drafting") && (
+          <Button size="sm" onClick={runDraft} disabled={phase === "drafting"}>
             {phase === "drafting"
               ? t("profile.roadmap.drafting")
               : t("profile.roadmap.draftButton")}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {phase === "empty" && (
         <div className="mt-4 space-y-3">

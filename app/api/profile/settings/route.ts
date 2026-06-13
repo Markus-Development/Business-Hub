@@ -13,7 +13,15 @@ export async function GET() {
   }
 }
 
-const PATCH_KEYS = new Set(["timezone", "master_calendar_id", "task_type_windows"]);
+const PATCH_KEYS = new Set([
+  "timezone",
+  "master_calendar_id",
+  "task_type_windows",
+  "timeblock_horizon_days",
+  "workday_start_hour",
+  "workday_end_hour",
+  "default_tab",
+]);
 
 export async function PATCH(req: Request) {
   let body: unknown;

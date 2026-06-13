@@ -2,36 +2,33 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Layers, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectsTable } from "./ProjectsTable";
 import { ProjectsKanban } from "./ProjectsKanban";
 import { ProjectsCalendar } from "./ProjectsCalendar";
 import { ProjectDrawer } from "./ProjectDrawer";
 import { AddProjectDialog } from "./AddProjectDialog";
-import { postProjectUpdate, type UpdateField } from "./api";
-import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  ProjectsToolbar,
+  VIEWS,
+  DEFAULT_SCOPE,
+  parseScope,
+  presetKeyOf,
+  statusOf,
+  type View,
+} from "./ProjectsToolbar";
+import { postProjectUpdate, type UpdateField } from "./api";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
-import { PRIORITIES, STATUSES } from "@/constants/priorities";
+import { PROJECT_VIEWS } from "@/constants/project-views";
 import { DEPARTMENTS } from "@/constants/departments";
-import { PROJECT_VIEWS, DEFAULT_VIEW_KEY, type ViewKey } from "@/constants/project-views";
 import { ROUTES } from "@/constants/routes";
 import type { Project, SelectOption } from "@/lib/notion";
 
 const VIEW_STORAGE_KEY = "bh.projects.view";
+// Reused (not migrated to a new key): the combined Status dropdown now stores a
+// prefixed scope string ("view:<key>" | "status:<name>"); legacy bare preset
+// values written before this change are migrated on read by `parseScope`.
 const VIEW_PRESET_STORAGE_KEY = "bh.projects.viewPreset";
-type View = "table" | "kanban" | "calendar";
-const VIEWS = ["table", "kanban", "calendar"] as const;
-const VIEW_PRESET_KEYS = PROJECT_VIEWS.map((v) => v.key) as readonly string[];
-const ALL = "__all";
 
 const FIELD_KEY: Record<UpdateField, keyof Project> = {
   Status: "status",
@@ -46,10 +43,11 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const t = useT();
   const searchParams = useSearchParams();
   const [view, setView] = useState<View>("table");
-  const [viewPreset, setViewPreset] = useState<ViewKey>(DEFAULT_VIEW_KEY);
+  // Combined Status scope: "view:<key>" (preset, narrows Table+Calendar only) or
+  // "status:<name>" (single status, filters ALL views incl. Kanban). Default 'open'.
+  const [scope, setScope] = useState<string>(DEFAULT_SCOPE);
   const [items, setItems] = useState<Project[]>(projects);
 
-  const [statusFilter, setStatusFilter] = useState<string>("");
   // Pre-seed from `?department=<name>` on mount when the value matches a known
   // Department (e.g. links from Tab 5's project-count badge). Lazy initialiser
   // intentionally ignores later URL changes — once mounted, the user's filter
@@ -75,10 +73,9 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
       if (stored && (VIEWS as readonly string[]).includes(stored)) {
         setView(stored as View);
       }
-      const storedPreset = window.localStorage.getItem(VIEW_PRESET_STORAGE_KEY);
-      if (storedPreset && VIEW_PRESET_KEYS.includes(storedPreset)) {
-        setViewPreset(storedPreset as ViewKey);
-      }
+      const storedScope = window.localStorage.getItem(VIEW_PRESET_STORAGE_KEY);
+      // parseScope migrates legacy bare preset keys and rejects unknown values.
+      setScope(parseScope(storedScope));
     } catch {}
   }, []);
 
@@ -114,10 +111,10 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     } catch {}
   };
 
-  const changeViewPreset = (key: ViewKey) => {
-    setViewPreset(key);
+  const changeScope = (next: string) => {
+    setScope(next);
     try {
-      window.localStorage.setItem(VIEW_PRESET_STORAGE_KEY, key);
+      window.localStorage.setItem(VIEW_PRESET_STORAGE_KEY, next);
     } catch {}
   };
 
@@ -158,25 +155,35 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
     setItems((prev) => [project, ...prev]);
   };
 
+  // Derive the active scope: either a preset key (narrows Table+Calendar only) or
+  // a single status (filters ALL views). Exactly one is non-null.
+  const presetKey = presetKeyOf(scope);
+  const singleStatus = statusOf(scope);
+
+  // `filteredItems` applies the single-status filter (when a status is selected)
+  // plus department + priority. Kanban renders this set: with a preset selected
+  // `singleStatus` is "", so Kanban keeps its full Active/On Hold/Done columns;
+  // with a single status selected, Kanban shows only that status.
   const filteredItems = useMemo(() => {
     return items.filter((p) => {
-      if (statusFilter && p.status !== statusFilter) return false;
+      if (singleStatus && p.status !== singleStatus) return false;
       if (departmentFilter && p.department !== departmentFilter) return false;
       if (priorityFilter && p.priority !== priorityFilter) return false;
       return true;
     });
-  }, [items, statusFilter, departmentFilter, priorityFilter]);
+  }, [items, singleStatus, departmentFilter, priorityFilter]);
 
-  // `listItems` narrows `filteredItems` to the active view preset's status set.
-  // Table + Calendar render this; Kanban deliberately renders `filteredItems`
-  // (the preset does not apply to Kanban — it keeps its own STATUSES columns).
+  // `listItems` (Table + Calendar) narrows `filteredItems` to the active preset's
+  // status set. When a single status is selected (no preset), it equals
+  // `filteredItems` — the status filter already applied, so all views agree.
   const listItems = useMemo(() => {
+    if (!presetKey) return filteredItems;
     const presetStatuses =
-      PROJECT_VIEWS.find((v) => v.key === viewPreset)?.statuses ?? [];
+      PROJECT_VIEWS.find((v) => v.key === presetKey)?.statuses ?? [];
     return filteredItems.filter(
       (p) => p.status != null && (presetStatuses as readonly string[]).includes(p.status),
     );
-  }, [filteredItems, viewPreset]);
+  }, [filteredItems, presetKey]);
 
   // Drawer follows live items so optimistic edits are reflected.
   const selectedProject = useMemo(
@@ -191,122 +198,20 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div
-            role="group"
-            aria-label={t("projects.viewToggle.ariaLabel")}
-            className="inline-flex items-center rounded-md border border-border bg-card p-0.5"
-          >
-            {VIEWS.map((v) => {
-              const active = view === v;
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => changeView(v)}
-                  aria-pressed={active}
-                  className={cn(
-                    "rounded-sm px-3 py-1 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t(`projects.view.${v}` as const)}
-                </button>
-              );
-            })}
-          </div>
-          <div className="hidden h-6 w-px bg-border md:block" aria-hidden />
-          <Select
-            value={viewPreset}
-            onValueChange={(v) => changeViewPreset(v as ViewKey)}
-          >
-            <SelectTrigger
-              aria-label={t("projects.views.label")}
-              className="h-9 w-[140px] text-sm sm:w-[180px]"
-            >
-              <SelectValue placeholder={t("projects.views.label")} />
-            </SelectTrigger>
-            <SelectContent>
-              {PROJECT_VIEWS.map((v) => (
-                <SelectItem key={v.key} value={v.key}>
-                  {t(`projects.views.${v.key}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter || ALL}
-            onValueChange={(v) => setStatusFilter(v === ALL ? "" : v)}
-          >
-            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
-              <SelectValue placeholder={t("projects.filter.allStatuses")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("projects.filter.allStatuses")}</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {t(`status.${s}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={departmentFilter || ALL}
-            onValueChange={(v) => setDepartmentFilter(v === ALL ? "" : v)}
-          >
-            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
-              <SelectValue placeholder={t("projects.filter.allDepartments")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("projects.filter.allDepartments")}</SelectItem>
-              {DEPARTMENTS.map((d) => (
-                <SelectItem key={d} value={d}>
-                  {d}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={priorityFilter || ALL}
-            onValueChange={(v) => setPriorityFilter(v === ALL ? "" : v)}
-          >
-            <SelectTrigger className="h-9 w-[140px] text-sm sm:w-[180px]">
-              <SelectValue placeholder={t("projects.filter.allPriorities")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("projects.filter.allPriorities")}</SelectItem>
-              {PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {t(`priority.${p}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {view === "table" && (
-            <button
-              type="button"
-              onClick={() => setGroupByDepartment((v) => !v)}
-              className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
-                groupByDepartment
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Layers size={14} aria-hidden />
-              {t("projects.groupByDepartment")}
-            </button>
-          )}
-        </div>
-
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="size-4" aria-hidden />
-          {t("projects.add.button")}
-        </Button>
-      </div>
+      <ProjectsToolbar
+        view={view}
+        onChangeView={changeView}
+        scope={scope}
+        onChangeScope={changeScope}
+        statusOptions={statusOptions}
+        departmentFilter={departmentFilter}
+        onChangeDepartment={setDepartmentFilter}
+        priorityFilter={priorityFilter}
+        onChangePriority={setPriorityFilter}
+        groupByDepartment={groupByDepartment}
+        onToggleGroupByDepartment={() => setGroupByDepartment((v) => !v)}
+        onAdd={() => setAddOpen(true)}
+      />
 
       {view === "kanban" ? (
         <ProjectsKanban

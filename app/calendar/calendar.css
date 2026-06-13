@@ -38,15 +38,16 @@
 .bh-calendar .fc-timegrid-axis-cushion {
   font-size: 0;
 }
+/* Row height is NOT set here. The calendar fills the full remaining viewport
+   height via FullCalendar's `height="100%"` + `expandRows` on a fixed-height
+   container (see CalendarView), which distributes the 06:00–22:00 slots evenly
+   to fill the space (~28–30px/row on a 14" viewport). Hardcoding slot heights
+   would fight expandRows, so only the label aesthetics live here. */
 .bh-calendar .fc-timegrid-slot-label-cushion {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1;
   color: var(--muted-foreground);
   padding-right: 6px;
-}
-
-/* Slot height — 48px per hour. FullCalendar splits each hour into 2 slots of 24px. */
-.bh-calendar .fc-timegrid-slot {
-  height: 24px;
 }
 .bh-calendar .fc-timegrid-slot-minor {
   border-top-style: dashed;

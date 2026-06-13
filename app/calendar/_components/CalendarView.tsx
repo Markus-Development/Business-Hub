@@ -496,13 +496,13 @@ export function CalendarView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-screen-2xl">
-      <header className="mb-4 flex items-center justify-between gap-4">
+    <div className="mx-auto flex h-[calc(100vh-3.5rem-2rem)] w-full max-w-screen-2xl flex-col sm:h-[calc(100vh-3.5rem-3rem)]">
+      {/* Title + calendar controls merged into one row: title + Today/Nav/label on
+          the left, the Day/Week/Range switcher pushed right (ml-auto). No separate
+          toolbar row — this keeps maximum vertical space for the grid. */}
+      <header className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="text-xl font-semibold text-foreground">{t("calendar.title")}</h1>
-      </header>
 
-      {/* Custom Google-style toolbar — replaces FullCalendar's default chrome. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={goToday}>
             {t("calendar.toolbar.today")}
@@ -512,7 +512,7 @@ export function CalendarView({
               type="button"
               onClick={goPrev}
               aria-label={t("calendar.toolbar.prev")}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -520,7 +520,7 @@ export function CalendarView({
               type="button"
               onClick={goNext}
               aria-label={t("calendar.toolbar.next")}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -533,7 +533,7 @@ export function CalendarView({
         <div
           role="group"
           aria-label={t("calendar.view.week")}
-          className="inline-flex items-center rounded-md border border-border bg-card p-0.5"
+          className="ml-auto inline-flex items-center rounded-md border border-border bg-card p-0.5"
         >
           {(["day", "week", "custom"] as const).map((v) => (
             <button
@@ -542,7 +542,7 @@ export function CalendarView({
               onClick={() => switchView(v)}
               aria-pressed={calView === v}
               className={cn(
-                "rounded-sm px-3 py-1 text-sm font-medium transition-colors",
+                "rounded-sm px-3 py-0.5 text-sm font-medium transition-colors",
                 calView === v
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -552,10 +552,10 @@ export function CalendarView({
             </button>
           ))}
         </div>
-      </div>
+      </header>
 
       {calView === "custom" && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
           <label className="text-muted-foreground" htmlFor="bh-cal-from">
             {t("calendar.customRange.from")}
           </label>
@@ -594,7 +594,7 @@ export function CalendarView({
         </div>
       )}
 
-      <div className="bh-calendar overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-sm sm:p-3">
+      <div className="bh-calendar min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-sm sm:p-3">
         <FullCalendar
           ref={calendarRef}
           plugins={[timeGridPlugin, interactionPlugin]}
@@ -602,7 +602,8 @@ export function CalendarView({
           events={fcEvents}
           locale={locale === "de" ? deLocale : enLocale}
           firstDay={1}
-          height="auto"
+          height="100%"
+          expandRows
           selectable
           selectMirror
           editable={false}

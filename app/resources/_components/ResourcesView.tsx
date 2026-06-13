@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -9,7 +9,16 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink, Link as LinkIcon, Plus } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
+  ExternalLink,
+  Link as LinkIcon,
+  Plus,
+  Rows2,
+  Rows3,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +32,9 @@ import {
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/constants/routes";
+import { notionColour, notionColourBg, notionColourText } from "@/constants/priorities";
 import type { ReasonArchived } from "@/constants/archive";
-import type { NotionResource } from "@/lib/notion";
+import type { NotionResource, SelectOption } from "@/lib/notion";
 import { AddResourceDialog } from "./AddResourceDialog";
 import { ResourceDrawer } from "./ResourceDrawer";
 
@@ -35,6 +45,17 @@ type Props = {
 };
 
 const ALL = "__all";
+const DENSITY_KEY = "bh.resources.density";
+
+type Density = "compact" | "comfortable";
+// name -> Notion colour name (default | gray | ...) for each of the three
+// Resources select properties. Empty until /api/resources/options resolves;
+// a missing entry falls back to the muted default pill.
+type ColorMaps = {
+  area: Record<string, string | null>;
+  type: Record<string, string | null>;
+  status: Record<string, string | null>;
+};
 
 export function ResourcesView({ resources: initial, notConfigured, error }: Props) {
   const t = useT();
@@ -46,6 +67,62 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [density, setDensity] = useState<Density>("compact");
+  const [colorMaps, setColorMaps] = useState<ColorMaps>({ area: {}, type: {}, status: {} });
+
+  // Mount-read of the persisted density. Empty deps, primitive value → loop-safe.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(DENSITY_KEY);
+      if (stored === "comfortable") setDensity("comfortable");
+    } catch {
+      // localStorage unavailable — keep default compact.
+    }
+  }, []);
+
+  const toggleDensity = () => {
+    setDensity((prev) => {
+      const next: Density = prev === "compact" ? "comfortable" : "compact";
+      try {
+        window.localStorage.setItem(DENSITY_KEY, next);
+      } catch {
+        // ignore persistence failure
+      }
+      return next;
+    });
+  };
+
+  // Fetch the Notion option colours once on mount. Non-fatal: any failure leaves
+  // the maps empty and the pills fall back to a muted default. Empty deps keeps
+  // it loop-safe; a cancelled flag guards against a late setState after unmount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(ROUTES.api.resources.options);
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          area?: SelectOption[];
+          type?: SelectOption[];
+          status?: SelectOption[];
+        };
+        if (cancelled) return;
+        setColorMaps({
+          area: toColorMap(json.area),
+          type: toColorMap(json.type),
+          status: toColorMap(json.status),
+        });
+      } catch {
+        // non-fatal — degrade to neutral pills
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cellPad = density === "compact" ? "px-3 py-1.5" : "px-4 py-2.5";
+  const headPad = density === "compact" ? "px-3 py-2" : "px-4 py-2.5";
 
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale === "de" ? "de-DE" : "en-US", { dateStyle: "medium" }),
@@ -91,19 +168,32 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
       {
         accessorKey: "area",
         header: t("resources.col.area"),
-        cell: ({ row }) => (row.original.area ? <Pill>{row.original.area}</Pill> : <Dash />),
+        cell: ({ row }) =>
+          row.original.area ? (
+            <ColorPill label={row.original.area} color={colorMaps.area[row.original.area] ?? null} />
+          ) : (
+            <Dash />
+          ),
       },
       {
         accessorKey: "type",
         header: t("resources.col.type"),
-        cell: ({ row }) => (row.original.type ? <Pill>{row.original.type}</Pill> : <Dash />),
+        cell: ({ row }) =>
+          row.original.type ? (
+            <ColorPill label={row.original.type} color={colorMaps.type[row.original.type] ?? null} />
+          ) : (
+            <Dash />
+          ),
       },
       {
         accessorKey: "status",
         header: t("resources.col.status"),
         cell: ({ row }) =>
           row.original.status ? (
-            <span className="text-sm text-foreground">{row.original.status}</span>
+            <StatusDotLabel
+              label={row.original.status}
+              color={colorMaps.status[row.original.status] ?? null}
+            />
           ) : (
             <Dash />
           ),
@@ -162,7 +252,7 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
         },
         cell: ({ row }) =>
           row.original.lastReviewed ? (
-            <span className="font-mono text-sm text-muted-foreground">
+            <span className="font-mono text-sm tabular-nums text-muted-foreground">
               {safeFormat(dateFormatter, row.original.lastReviewed)}
             </span>
           ) : (
@@ -189,7 +279,7 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
         ),
       },
     ],
-    [t, dateFormatter],
+    [t, dateFormatter, colorMaps],
   );
 
   const table = useReactTable({
@@ -289,7 +379,34 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
             ))}
           </SelectContent>
         </Select>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={toggleDensity}
+            aria-label={
+              density === "compact"
+                ? t("resources.density.toComfortable")
+                : t("resources.density.toCompact")
+            }
+            title={
+              density === "compact"
+                ? t("resources.density.toComfortable")
+                : t("resources.density.toCompact")
+            }
+          >
+            {density === "compact" ? (
+              <Rows2 className="size-4" aria-hidden />
+            ) : (
+              <Rows3 className="size-4" aria-hidden />
+            )}
+            <span className="hidden sm:inline">
+              {density === "compact"
+                ? t("resources.density.compact")
+                : t("resources.density.comfortable")}
+            </span>
+          </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="size-4" aria-hidden />
             {t("resources.addNote")}
@@ -301,19 +418,22 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
         <p className="text-sm text-destructive">{t("resources.error")}</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-muted/40">
+          <table className="w-full border-collapse text-left font-sans text-sm">
+            <thead>
               {table.getHeaderGroups().map((group) => (
                 <tr key={group.id}>
                   {group.headers.map((header) => {
                     const canSort = header.column.getCanSort();
                     const sort = header.column.getIsSorted();
                     const isOpenCol = header.column.id === "open";
+                    const isAreaCol = header.column.id === "area";
                     return (
                       <th
                         key={header.id}
                         className={cn(
-                          "select-none px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                          "sticky top-0 z-10 select-none bg-muted text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                          headPad,
+                          isAreaCol && "min-w-[180px]",
                           isOpenCol && "w-[48px] px-2",
                         )}
                       >
@@ -365,7 +485,9 @@ export function ResourcesView({ resources: initial, notConfigured, error }: Prop
                       <td
                         key={cell.id}
                         className={cn(
-                          "px-4 py-2.5 align-middle",
+                          "align-middle font-sans text-sm",
+                          cellPad,
+                          cell.column.id === "area" && "min-w-[180px]",
                           cell.column.id === "open" && "w-[48px] px-2",
                         )}
                       >
@@ -406,10 +528,39 @@ function uniqSorted(values: (string | null)[]): string[] {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+// Builds a `name -> colour` lookup from a Notion option list. A missing list
+// (property absent / wrong type → empty array from the route) yields {}.
+function toColorMap(options: SelectOption[] | undefined): Record<string, string | null> {
+  const map: Record<string, string | null> = {};
+  for (const o of options ?? []) map[o.name] = o.color;
+  return map;
+}
+
+// Read-only Notion-style pill (light fill + matching text colour). A null colour
+// (no lookup yet, or option missing) falls back to the muted default fill via the
+// NOTION_COLOUR_* helpers. `whitespace-nowrap` keeps long labels on one line.
+function ColorPill({ label, color }: { label: string; color: string | null }) {
   return (
-    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-      {children}
+    <span
+      style={{ background: notionColourBg(color), color: notionColourText(color) }}
+      className="inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium"
+    >
+      {label}
+    </span>
+  );
+}
+
+// Status rendered as a 6px colour dot + label, quieter than a full pill so the
+// Status column stays calm. Solid dot colour via `notionColour()`.
+function StatusDotLabel({ label, color }: { label: string; color: string | null }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-sans text-sm text-foreground">
+      <span
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ background: notionColour(color) }}
+        aria-hidden
+      />
+      {label}
     </span>
   );
 }

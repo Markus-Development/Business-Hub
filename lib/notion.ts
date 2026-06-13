@@ -51,6 +51,11 @@ export type ProjectDraft = {
   priority: Priority;
   dueDate: string | null;
   nextAction: string;
+  // Development-tab metadata (Projects DB `Product` / `Dev Type` selects).
+  // Optional + additive: only written when a non-null/non-empty value is given,
+  // so existing callers (Projects tab, generate-tasks) are unaffected.
+  product?: string | null;
+  devType?: string | null;
 };
 
 export type UpdateField =
@@ -704,6 +709,14 @@ export async function createProject(draft: ProjectDraft): Promise<Project> {
     ...buildPropertyBody("Priority", draft.priority),
     ...buildPropertyBody("Due Date", draft.dueDate),
     ...buildPropertyBody("Next Action", draft.nextAction),
+    // Additive Development-tab selects — only set when present, mirroring the
+    // Department `select` write shape. A page without them simply omits them.
+    ...(draft.product
+      ? { Product: { type: "select", select: { name: draft.product } } }
+      : {}),
+    ...(draft.devType
+      ? { "Dev Type": { type: "select", select: { name: draft.devType } } }
+      : {}),
   };
   const page = (await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: dataSourceId } as any,

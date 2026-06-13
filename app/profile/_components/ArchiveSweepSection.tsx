@@ -60,12 +60,13 @@ export function ArchiveSweepSection() {
   };
 
   return (
-    <section className="mt-10">
-      <h2 className="text-lg font-semibold text-foreground">{t("profile.archive.title")}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{t("profile.archive.description")}</p>
-
-      <div className="mt-4">
-        <Button onClick={runSweep} disabled={running}>
+    <section>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">{t("profile.archive.title")}</h3>
+          <p className="text-xs text-muted-foreground">{t("profile.archive.description")}</p>
+        </div>
+        <Button size="sm" onClick={runSweep} disabled={running}>
           {running ? t("profile.archive.running") : t("profile.archive.button")}
         </Button>
       </div>

@@ -2,12 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
 import type { TranslationKey } from "@/constants/translations";
 import { ROUTES } from "@/constants/routes";
+import { NAV_GROUPS } from "@/constants/nav";
+
+// Flat list of the real sidebar tabs, used for the default-tab dropdown.
+const TAB_OPTIONS = NAV_GROUPS.flatMap((g) => g.items.map((i) => ({ href: i.href, label: i.label })));
+const HORIZON_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+
+// Collapsed-by-default accordion state for the task-type-windows card persists
+// here. Same pattern as app/areas/_components/CategorySection.tsx.
+const WINDOWS_STORAGE_KEY = "bh.profile.windows";
 
 type TaskTypeWindow = {
   task_type: string;
@@ -20,6 +36,10 @@ type UserSettings = {
   timezone: string;
   master_calendar_id: string | null;
   task_type_windows: TaskTypeWindow[];
+  timeblock_horizon_days: number;
+  workday_start_hour: number;
+  workday_end_hour: number;
+  default_tab: string;
   updated_at: string;
 };
 
@@ -95,6 +115,30 @@ export function SettingsSection() {
   const [taskTypesMissing, setTaskTypesMissing] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Task-type-windows accordion, collapsed by default. Mount-only read with no
+  // deps keeps this loop-safe (mirrors CategorySection.tsx).
+  const [windowsOpen, setWindowsOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(WINDOWS_STORAGE_KEY);
+      if (stored === "expanded") setWindowsOpen(true);
+    } catch {
+      // localStorage unavailable — keep default collapsed.
+    }
+  }, []);
+
+  const toggleWindows = () => {
+    setWindowsOpen((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(WINDOWS_STORAGE_KEY, next ? "expanded" : "collapsed");
+      } catch {
+        // ignore persistence failure
+      }
+      return next;
+    });
+  };
+
   // Same loop-safe pattern as the other client components: keep current t in a ref
   // and mount the fetch effect with empty deps so locale toggles don't refetch.
   const tRef = useRef(t);
@@ -145,7 +189,20 @@ export function SettingsSection() {
   }, [loadCalendars]);
 
   const patchSettings = useCallback(
-    async (patch: Partial<Pick<UserSettings, "timezone" | "master_calendar_id" | "task_type_windows">>) => {
+    async (
+      patch: Partial<
+        Pick<
+          UserSettings,
+          | "timezone"
+          | "master_calendar_id"
+          | "task_type_windows"
+          | "timeblock_horizon_days"
+          | "workday_start_hour"
+          | "workday_end_hour"
+          | "default_tab"
+        >
+      >,
+    ) => {
       const snapshot = settings;
       if (!snapshot) return;
       // Optimistic update.
@@ -182,6 +239,40 @@ export function SettingsSection() {
   const handleCalendarPick = (id: string) => {
     void patchSettings({ master_calendar_id: id });
   };
+
+  const handleHorizonPick = (raw: string) => {
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isInteger(n) || n < 1 || n > 7) return;
+    void patchSettings({ timeblock_horizon_days: n });
+  };
+
+  const handleDefaultTabPick = (href: string) => {
+    void patchSettings({ default_tab: href });
+  };
+
+  // Local workday-window state so an invalid edit (start >= end) shows inline
+  // and is not persisted, mirroring the task-type-windows editor.
+  const [workdayStart, setWorkdayStart] = useState(9);
+  const [workdayEnd, setWorkdayEnd] = useState(18);
+  useEffect(() => {
+    if (settings) {
+      setWorkdayStart(settings.workday_start_hour);
+      setWorkdayEnd(settings.workday_end_hour);
+    }
+  }, [settings?.workday_start_hour, settings?.workday_end_hour]);
+
+  const handleWorkdayChange = (field: "start" | "end", raw: string) => {
+    const hour = clampHour(raw);
+    if (hour === null) return;
+    const nextStart = field === "start" ? hour : workdayStart;
+    const nextEnd = field === "end" ? hour : workdayEnd;
+    setWorkdayStart(nextStart);
+    setWorkdayEnd(nextEnd);
+    // Only PATCH when the window is valid; invalid shows the inline error.
+    if (nextStart >= nextEnd) return;
+    void patchSettings({ workday_start_hour: nextStart, workday_end_hour: nextEnd });
+  };
+  const workdayInvalid = workdayStart >= workdayEnd;
 
   const handleWindowChange = (
     index: number,
@@ -227,7 +318,7 @@ export function SettingsSection() {
       ) : !settings ? (
         <p className="mt-4 text-sm text-muted-foreground">{t("settings.errorLoad")}</p>
       ) : (
-        <div className="mt-4 space-y-6">
+        <div className="mt-4 grid items-start gap-4 sm:grid-cols-2">
           {/* Timezone */}
           <SubsectionCard
             titleKey="settings.tz.title"
@@ -281,41 +372,127 @@ export function SettingsSection() {
             ) : calendars.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("settings.cal.empty")}</p>
             ) : (
-              <ul className="space-y-2">
-                {calendars.map((c) => {
-                  const checked = settings.master_calendar_id === c.id;
-                  return (
-                    <li key={c.id}>
-                      <label className="flex cursor-pointer items-center gap-3">
-                        <input
-                          type="radio"
-                          name="master_calendar"
-                          value={c.id}
-                          checked={checked}
-                          onChange={() => handleCalendarPick(c.id)}
-                          className="size-4 accent-primary"
-                        />
-                        <span className="text-sm text-foreground">{c.summary}</span>
-                        {c.primary ? (
-                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                            {t("settings.cal.primary")}
-                          </span>
-                        ) : null}
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
+              <Select
+                value={settings.master_calendar_id ?? undefined}
+                onValueChange={handleCalendarPick}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("settings.cal.title")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {calendars.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.primary ? `${c.summary} (${t("settings.cal.primary")})` : c.summary}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </SubsectionCard>
 
-          {/* Task Type Windows */}
+          {/* Time-block horizon */}
           <SubsectionCard
-            titleKey="settings.windows.title"
-            descriptionKey="settings.windows.description"
+            titleKey="settings.horizon.title"
+            descriptionKey="settings.horizon.description"
             t={t}
           >
-            {taskTypesMissing ? (
+            <Select
+              value={String(settings.timeblock_horizon_days)}
+              onValueChange={handleHorizonPick}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HORIZON_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {t("settings.horizon.days").replace("{count}", String(n))}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SubsectionCard>
+
+          {/* Default workday window */}
+          <SubsectionCard
+            titleKey="settings.workday.title"
+            descriptionKey="settings.workday.description"
+            t={t}
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={23}
+                value={workdayStart}
+                onChange={(e) => handleWorkdayChange("start", e.target.value)}
+                className="w-20 font-mono"
+                aria-label={t("settings.workday.start")}
+              />
+              <span className="text-muted-foreground">–</span>
+              <Input
+                type="number"
+                min={0}
+                max={23}
+                value={workdayEnd}
+                onChange={(e) => handleWorkdayChange("end", e.target.value)}
+                className="w-20 font-mono"
+                aria-label={t("settings.workday.end")}
+              />
+              {workdayInvalid ? (
+                <span className="text-xs text-destructive">{t("settings.workday.invalid")}</span>
+              ) : null}
+            </div>
+          </SubsectionCard>
+
+          {/* Default tab on app open */}
+          <SubsectionCard
+            titleKey="settings.defaultTab.title"
+            descriptionKey="settings.defaultTab.description"
+            t={t}
+          >
+            <Select value={settings.default_tab} onValueChange={handleDefaultTabPick}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TAB_OPTIONS.map((tab) => (
+                  <SelectItem key={tab.href} value={tab.href}>
+                    {t(tab.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SubsectionCard>
+
+          {/* Task Type Windows — collapsed-by-default accordion (CategorySection pattern) */}
+          <div className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm sm:col-span-2">
+            <button
+              type="button"
+              onClick={toggleWindows}
+              aria-expanded={windowsOpen}
+              aria-label={
+                windowsOpen ? t("settings.windows.collapse") : t("settings.windows.expand")
+              }
+              className="flex w-full items-start gap-2 text-left"
+            >
+              {windowsOpen ? (
+                <ChevronDown size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+              ) : (
+                <ChevronRight size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+              )}
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-foreground">
+                  {t("settings.windows.title")}
+                </span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {t("settings.windows.description")}
+                </span>
+              </span>
+            </button>
+            {windowsOpen ? (
+              <div className="mt-3">
+                {taskTypesMissing ? (
               <p className="text-sm text-muted-foreground">{t("settings.windows.missing")}</p>
             ) : !taskTypes ? (
               <p className="text-sm text-muted-foreground">{t("settings.windows.loading")}</p>
@@ -393,7 +570,9 @@ export function SettingsSection() {
                 })}
               </ul>
             )}
-          </SubsectionCard>
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </section>

@@ -34,10 +34,7 @@ import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/constants/routes";
 import type { AreaUpdateField, NotionArea, NotionBlock } from "@/lib/notion";
-
-// Strip the " (vN)" version suffix so the single-area review opens against the
-// base name the diff route keys on (same rule as elsewhere in the Areas code).
-const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+import { normalizeAreaName } from "./normalize";
 
 type Props = {
   area: NotionArea | null;
@@ -75,7 +72,7 @@ export function AreaDialog({
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle className="truncate pr-8 text-lg font-semibold text-foreground">
-            {area?.name ?? t("areas.title")}
+            {area ? normalizeAreaName(area.name) : t("areas.title")}
           </DialogTitle>
         </DialogHeader>
 
@@ -85,7 +82,7 @@ export function AreaDialog({
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
                 {showActiveBadge ? (
                   <Link
-                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
+                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(normalizeAreaName(area.name))}`}
                     className={cn(
                       "inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
                       activeProjectCount === 0 ? "text-muted-foreground" : "text-foreground",
@@ -96,7 +93,7 @@ export function AreaDialog({
                 ) : null}
                 {overdueCount > 0 ? (
                   <Link
-                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(area.name)}`}
+                    href={`${ROUTES.pages.projects}?department=${encodeURIComponent(normalizeAreaName(area.name))}`}
                     className="inline-flex items-center rounded-full border border-red-200/50 bg-red-500/15 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-500/25 dark:text-red-300"
                   >
                     {t("areas.overdueProjects").replace("{count}", String(overdueCount))}
@@ -211,7 +208,7 @@ export function AreaDialog({
             {area ? (
               <Button asChild variant="outline" size="sm">
                 <Link
-                  href={`${ROUTES.pages.areasReview}?area=${encodeURIComponent(normalize(area.name))}`}
+                  href={`${ROUTES.pages.areasReview}?area=${encodeURIComponent(normalizeAreaName(area.name))}`}
                 >
                   <ClipboardCheck className="mr-1.5 size-3.5" aria-hidden />
                   {t("areas.drawer.reviewThis")}

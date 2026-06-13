@@ -17,23 +17,40 @@ import { ROW_COLS, type SuggestionRow } from "./_lib";
 
 export const runtime = "nodejs";
 
-const DEFAULT_WORK_DAY_START_HOUR = 9;
-const DEFAULT_WORK_DAY_END_HOUR = 18;
+// Hard safety net if even the configured global window is unusable.
+const SAFE_WORK_DAY_START_HOUR = 9;
+const SAFE_WORK_DAY_END_HOUR = 18;
 
 type TaskTypeWindow = { task_type: string; start_hour: number; end_hour: number };
 
+function safeWindow(startHour: number, endHour: number): { startHour: number; endHour: number } {
+  if (
+    !Number.isInteger(startHour) ||
+    !Number.isInteger(endHour) ||
+    startHour < 0 ||
+    startHour > 23 ||
+    endHour < 0 ||
+    endHour > 23 ||
+    startHour >= endHour
+  ) {
+    return { startHour: SAFE_WORK_DAY_START_HOUR, endHour: SAFE_WORK_DAY_END_HOUR };
+  }
+  return { startHour, endHour };
+}
+
 // Returns the overall window to scan for free slots. If the user has configured
-// task_type_windows, take the union of all entries (min start_hour, max end_hour).
-// This is a first-pass wire-through — per-task-type routing is a future task.
-// Falls back to 09–18 when no windows are configured.
+// task_type_windows, take the union of all entries (min start_hour, max end_hour) —
+// that keeps precedence. This is a first-pass wire-through; per-task-type routing
+// is a future task. With no windows configured, fall back to the user's global
+// default workday window (settings.workday_start_hour/end_hour); if that is itself
+// invalid, fall back to the hardcoded 09–18 safety net.
 function resolveWorkdayHours(
   windows: TaskTypeWindow[],
+  fallbackStartHour: number,
+  fallbackEndHour: number,
 ): { startHour: number; endHour: number } {
   if (!Array.isArray(windows) || windows.length === 0) {
-    return {
-      startHour: DEFAULT_WORK_DAY_START_HOUR,
-      endHour: DEFAULT_WORK_DAY_END_HOUR,
-    };
+    return safeWindow(fallbackStartHour, fallbackEndHour);
   }
   let startHour = 23;
   let endHour = 0;
@@ -41,13 +58,7 @@ function resolveWorkdayHours(
     if (typeof w.start_hour === "number" && w.start_hour < startHour) startHour = w.start_hour;
     if (typeof w.end_hour === "number" && w.end_hour > endHour) endHour = w.end_hour;
   }
-  if (startHour >= endHour) {
-    return {
-      startHour: DEFAULT_WORK_DAY_START_HOUR,
-      endHour: DEFAULT_WORK_DAY_END_HOUR,
-    };
-  }
-  return { startHour, endHour };
+  return safeWindow(startHour, endHour);
 }
 
 const SYSTEM_PROMPT_MULTI = `You are Markus's multi-day time-block planner for Business Hub.
@@ -242,7 +253,6 @@ export async function GET() {
 }
 
 const MIN_FREE_MINUTES_PER_DAY = 60;
-const DEFAULT_HORIZON_DAYS = 5;
 const MAX_HORIZON_DAYS = 7;
 
 type DaySkipped = { date: string; reason: string };
@@ -265,18 +275,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const settings = await getUserSettings();
+
+    // Horizon: an explicit body override wins (clamped 1–7); otherwise use the
+    // user's configured timeblock_horizon_days from settings.
     const body = (await req.json().catch(() => ({}))) as { horizon_days?: unknown };
     const horizonRaw =
       typeof body.horizon_days === "number" && Number.isFinite(body.horizon_days)
         ? Math.floor(body.horizon_days)
-        : DEFAULT_HORIZON_DAYS;
+        : settings.timeblock_horizon_days;
     const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, horizonRaw));
 
-    const settings = await getUserSettings();
     const calendarId = settings.master_calendar_id ?? "primary";
     const today = todayInTz(settings.timezone);
     const { startHour, endHour } = resolveWorkdayHours(
       settings.task_type_windows as TaskTypeWindow[],
+      settings.workday_start_hour,
+      settings.workday_end_hour,
     );
     const nowIso = new Date().toISOString();
 

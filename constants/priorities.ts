@@ -67,3 +67,38 @@ export function notionColourText(name: string | null | undefined): string {
   if (!name) return NOTION_COLOUR_TEXT_MAP.default;
   return NOTION_COLOUR_TEXT_MAP[name] ?? NOTION_COLOUR_TEXT_MAP.default;
 }
+
+// Priority traffic-light pills for the Projects table (High = red, Medium = amber,
+// Low = green). Light fill + matching darker text, mirroring the Notion-pill style
+// in NOTION_COLOUR_BG_MAP / NOTION_COLOUR_TEXT_MAP above.
+//
+// SCOPED COLOUR EXCEPTION (Tier-2 palette): red / amber / green are not theme
+// tokens, so these are deliberately scoped OKLCH literals — the same exception the
+// Projects-calendar already makes for Medium priority. The Medium text value
+// reuses that calendar amber (`oklch(0.68 0.16 75)`) verbatim so the two surfaces
+// agree. No hex; keep these confined to priority rendering only.
+export const PRIORITY_COLOUR_BG_MAP: Record<Priority, string> = {
+  High: "oklch(0.94 0.04 25)",
+  Medium: "oklch(0.95 0.05 75)",
+  Low: "oklch(0.94 0.05 150)",
+};
+
+export const PRIORITY_COLOUR_TEXT_MAP: Record<Priority, string> = {
+  High: "oklch(0.55 0.17 25)",
+  Medium: "oklch(0.68 0.16 75)", // reuses the Projects-calendar Medium amber
+  Low: "oklch(0.52 0.13 150)",
+};
+
+export function priorityColourBg(name: string | null | undefined): string {
+  if (name && name in PRIORITY_COLOUR_BG_MAP) {
+    return PRIORITY_COLOUR_BG_MAP[name as Priority];
+  }
+  return NOTION_COLOUR_BG_MAP.default;
+}
+
+export function priorityColourText(name: string | null | undefined): string {
+  if (name && name in PRIORITY_COLOUR_TEXT_MAP) {
+    return PRIORITY_COLOUR_TEXT_MAP[name as Priority];
+  }
+  return NOTION_COLOUR_TEXT_MAP.default;
+}

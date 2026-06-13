@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Code2 } from "lucide-react";
+import { Code2, Plus } from "lucide-react";
 import { ProjectDrawer } from "@/app/projects/_components/ProjectDrawer";
 import { postProjectUpdate, type UpdateField } from "@/app/projects/_components/api";
 import {
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BadgeOption } from "@/app/projects/_components/cells/OptionBadgeSelect";
 import { useT } from "@/lib/i18n";
@@ -27,6 +28,7 @@ import { ROUTES } from "@/constants/routes";
 import type { TranslationKey } from "@/constants/translations";
 import type { Project, SelectOption } from "@/lib/notion";
 import { DevSection } from "./DevSection";
+import { AddDevItemDialog } from "./AddDevItemDialog";
 
 const ALL = "__all";
 
@@ -64,6 +66,7 @@ export function DevelopmentView({ projects, notConfigured, error }: Props) {
   const [devTypeFilter, setDevTypeFilter] = useState<string>("");
   const [statusBucket, setStatusBucket] = useState<DevStatusBucket>(DEFAULT_DEV_STATUS_BUCKET);
   const [search, setSearch] = useState<string>("");
+  const [addOpen, setAddOpen] = useState(false);
 
   // Live Notion Status options (name + colour) from /api/projects/options. Feeds
   // the inline Status pill on each row (incl. the new "Nicht relevant" option,
@@ -164,14 +167,28 @@ export function DevelopmentView({ projects, notConfigured, error }: Props) {
 
   const hasAny = filteredItems.length > 0;
 
+  // New dev item prepends into local state so it appears immediately (subject to
+  // the active filters) — the Notion read on reload then carries Product/Dev Type.
+  const handleCreated = (project: Project) => {
+    setItems((prev) => [project, ...prev]);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <Code2 className="size-5 text-primary" aria-hidden />
-          {t("development.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("development.subtitle")}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
+            <Code2 className="size-5 text-primary" aria-hidden />
+            {t("development.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground">{t("development.subtitle")}</p>
+        </div>
+        {!notConfigured && !error ? (
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            {t("development.add.button")}
+          </Button>
+        ) : null}
       </div>
 
       {notConfigured ? (
@@ -253,6 +270,8 @@ export function DevelopmentView({ projects, notConfigured, error }: Props) {
         }}
         onUpdate={handleUpdate}
       />
+
+      <AddDevItemDialog open={addOpen} onOpenChange={setAddOpen} onCreated={handleCreated} />
     </div>
   );
 }

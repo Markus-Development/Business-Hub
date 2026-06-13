@@ -19,11 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DueDateCell } from "./cells/DueDateCell";
-import { NextActionCell } from "./cells/NextActionCell";
 import { OptionBadgeSelect } from "./cells/OptionBadgeSelect";
 import { useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { PRIORITIES, type Priority } from "@/constants/priorities";
+import {
+  PRIORITIES,
+  priorityColourBg,
+  priorityColourText,
+  type Priority,
+} from "@/constants/priorities";
 import { DEPARTMENTS } from "@/constants/departments";
 import type { Project, SelectOption } from "@/lib/notion";
 import type { TranslationKey } from "@/constants/translations";
@@ -41,6 +45,12 @@ type Props = {
 type RowEntry =
   | { kind: "header"; department: string }
   | { kind: "row"; row: Row<Project> };
+
+// Per-column width/alignment classes applied to both <th> and <td>. Kept in
+// columnDef.meta so the generic header/body render can pick them up. Auto-layout
+// table: the Name column gets `w-full` to absorb slack; the others are fixed so
+// Name + Due Date fit without horizontal scroll.
+type ColMeta = { cellClass?: string; headerClass?: string };
 
 const PRIORITY_ORDER: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
 
@@ -95,11 +105,26 @@ export function ProjectsTable({
     return DEPARTMENTS.map((name) => ({ value: name, label: name, color: null }));
   }, [departmentOptions]);
 
+  // Priority traffic-light pill options. `color` carries the priority value itself
+  // so the priority colour resolvers (passed to OptionBadgeSelect) key on it.
+  const priorityBadgeOptions = useMemo(
+    () =>
+      PRIORITIES.map((p) => ({
+        value: p,
+        label: t(`priority.${p}` as const),
+        color: p as string,
+      })),
+    [t],
+  );
+
   const columns = useMemo<ColumnDef<Project>[]>(
     () => [
       {
         accessorKey: "name",
         header: t("projects.col.name"),
+        // Name absorbs the table's free width (w-full on the column). The button
+        // truncates (min-w-0) so long names ellipsize with the full text in `title`.
+        meta: { cellClass: "w-full", headerClass: "w-full" } satisfies ColMeta,
         cell: ({ row }) => (
           <div className="flex items-center gap-1.5">
             <button
@@ -128,58 +153,59 @@ export function ProjectsTable({
       {
         accessorKey: "status",
         header: t("projects.col.status"),
+        meta: { cellClass: "w-[140px]", headerClass: "w-[140px]" } satisfies ColMeta,
         cell: ({ row }) => (
           <OptionBadgeSelect
             value={row.original.status}
             options={statusBadgeOptions}
             onChange={(v) => onUpdate(row.original.id, "Status", v)}
             placeholder="—"
-            widthClass="w-[150px]"
+            widthClass="w-[130px]"
           />
         ),
       },
       {
         accessorKey: "department",
         header: t("projects.col.department"),
+        meta: { cellClass: "w-[150px]", headerClass: "w-[150px]" } satisfies ColMeta,
         cell: ({ row }) => (
           <OptionBadgeSelect
             value={row.original.department}
             options={departmentBadgeOptions}
             onChange={(v) => onUpdate(row.original.id, "Department", v)}
             placeholder={t("projects.cell.noDepartment")}
-            widthClass="w-[160px]"
+            widthClass="w-[140px]"
           />
         ),
       },
       {
         accessorKey: "priority",
         header: t("projects.col.priority"),
+        meta: { cellClass: "w-[120px]", headerClass: "w-[120px]" } satisfies ColMeta,
         sortingFn: (a, b) => {
           const av = a.original.priority ? PRIORITY_ORDER[a.original.priority] : 99;
           const bv = b.original.priority ? PRIORITY_ORDER[b.original.priority] : 99;
           return av - bv;
         },
+        // Traffic-light pill (High = red, Medium = amber, Low = green) via the
+        // shared OptionBadgeSelect with the priority colour resolvers. Inline edit
+        // is preserved — the trigger is the pill, the dropdown lists all options.
         cell: ({ row }) => (
-          <Select
-            value={row.original.priority ?? undefined}
-            onValueChange={(v) => onUpdate(row.original.id, "Priority", v)}
-          >
-            <SelectTrigger className="h-9 w-[130px] font-sans text-sm">
-              <SelectValue placeholder="—" />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {t(`priority.${p}` as const)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <OptionBadgeSelect
+            value={row.original.priority}
+            options={priorityBadgeOptions}
+            onChange={(v) => onUpdate(row.original.id, "Priority", v)}
+            placeholder="—"
+            widthClass="w-[110px]"
+            bgFor={priorityColourBg}
+            textFor={priorityColourText}
+          />
         ),
       },
       {
         accessorKey: "dueDate",
         header: t("projects.col.dueDate"),
+        meta: { cellClass: "w-[150px]", headerClass: "w-[150px]" } satisfies ColMeta,
         sortingFn: (a, b) => {
           const av = a.original.dueDate ?? "";
           const bv = b.original.dueDate ?? "";
@@ -196,19 +222,8 @@ export function ProjectsTable({
           />
         ),
       },
-      {
-        accessorKey: "nextAction",
-        header: t("projects.col.nextAction"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <NextActionCell
-            value={row.original.nextAction}
-            onSave={(v) => onUpdate(row.original.id, "Next Action", v)}
-          />
-        ),
-      },
     ],
-    [t, dateFormatter, onUpdate, onOpenProject],
+    [t, dateFormatter, onUpdate, onOpenProject, priorityBadgeOptions, statusBadgeOptions, departmentBadgeOptions],
   );
 
   const table = useReactTable({
@@ -343,14 +358,8 @@ export function ProjectsTable({
                       dateFormatter={dateFormatter}
                     />
                   </CardRow>
-                  <CardRow label={t("projects.col.nextAction")}>
-                    <NextActionCell
-                      value={entry.row.original.nextAction}
-                      onSave={(v) =>
-                        onUpdate(entry.row.original.id, "Next Action", v)
-                      }
-                    />
-                  </CardRow>
+                  {/* Next Action lives in the ProjectDrawer (table parity) — not on
+                      the mobile card. The onUpdate "Next Action" path stays for the drawer. */}
                 </dl>
               </div>
             ),
@@ -370,7 +379,10 @@ export function ProjectsTable({
                 return (
                   <th
                     key={header.id}
-                    className="select-none px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    className={cn(
+                      "select-none px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                      (header.column.columnDef.meta as ColMeta | undefined)?.headerClass,
+                    )}
                   >
                     {canSort ? (
                       <button
@@ -426,7 +438,13 @@ export function ProjectsTable({
                   className="border-t border-border transition-colors hover:bg-muted/30"
                 >
                   {entry.row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-2.5 align-middle">
+                    <td
+                      key={cell.id}
+                      className={cn(
+                        "px-4 py-2.5 align-middle",
+                        (cell.column.columnDef.meta as ColMeta | undefined)?.cellClass,
+                      )}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

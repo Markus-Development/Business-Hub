@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 
-const HORIZON_DAYS = 5;
-
 function filterFuture(items: Suggestion[]): Suggestion[] {
   const nowMs = Date.now();
   return items.filter((s) => Date.parse(s.start_at) >= nowMs);
@@ -66,10 +64,11 @@ async function postSuggest(): Promise<{
   error?: string;
   status: number;
 }> {
+  // No horizon override — the server uses the configured timeblock_horizon_days.
   const res = await fetch(ROUTES.api.digest.timeblocks, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ horizon_days: HORIZON_DAYS }),
+    body: JSON.stringify({}),
   });
   const body = (await res.json().catch(() => ({}))) as {
     suggestions?: Suggestion[];

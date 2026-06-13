@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ClipboardCheck, History, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 import { AREA_CATEGORIES, type AreaCategory } from "@/constants/area-categories";
 import type { TranslationKey } from "@/constants/translations";
@@ -13,8 +13,7 @@ import type { AreaUpdateField, NotionArea } from "@/lib/notion";
 import { AreaCard } from "./AreaCard";
 import { AreaDialog } from "./AreaDialog";
 import { CategorySection } from "./CategorySection";
-
-const normalize = (name: string) => name.replace(/ \(v\d+\)$/, "").trim();
+import { normalizeAreaName } from "./normalize";
 
 const CATEGORY_LABEL_KEY: Record<AreaCategory, TranslationKey> = {
   Business: "areas.category.business",
@@ -110,13 +109,18 @@ export function AreasView({
 
   const renderGrid = (items: NotionArea[]) => (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-      {items.map((area) => (
-        <AreaCard
-          key={area.id}
-          area={area}
-          onOpen={() => setSelectedAreaId(area.id)}
-        />
-      ))}
+      {items.map((area) => {
+        const base = normalizeAreaName(area.name);
+        return (
+          <AreaCard
+            key={area.id}
+            area={area}
+            activeProjectCount={projectCounts[base] ?? 0}
+            overdueCount={overdueCounts[base] ?? 0}
+            onOpen={() => setSelectedAreaId(area.id)}
+          />
+        );
+      })}
     </div>
   );
 
@@ -189,8 +193,8 @@ export function AreasView({
           if (!open) setSelectedAreaId(null);
         }}
         onPersist={persist}
-        activeProjectCount={selectedArea ? projectCounts[normalize(selectedArea.name)] ?? 0 : 0}
-        overdueCount={selectedArea ? overdueCounts[normalize(selectedArea.name)] ?? 0 : 0}
+        activeProjectCount={selectedArea ? projectCounts[normalizeAreaName(selectedArea.name)] ?? 0 : 0}
+        overdueCount={selectedArea ? overdueCounts[normalizeAreaName(selectedArea.name)] ?? 0 : 0}
       />
     </div>
   );
@@ -218,30 +222,35 @@ type FocusResponse = { summary: string | null; error?: string; cached?: boolean 
 // has a 1h TTL; the Refresh button busts that cache via ?bust=<ts>.
 function FocusHeader() {
   const t = useT();
+  const [locale] = useLocale();
   const tRef = useRef(t);
   tRef.current = t;
 
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchFocus = useCallback(async (bust = false) => {
-    setLoading(true);
-    try {
-      const url = bust
-        ? `${ROUTES.api.areas.focus}?bust=${Date.now()}`
-        : ROUTES.api.areas.focus;
-      const res = await fetch(url, { cache: "no-store" });
-      const body = (await res.json()) as FocusResponse;
-      setSummary(body.summary ?? null);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("areas_focus_fetch_failed", err);
-      setSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchFocus = useCallback(
+    async (bust = false) => {
+      setLoading(true);
+      try {
+        const url = bust
+          ? `${ROUTES.api.areas.focus}?bust=${Date.now()}&locale=${locale}`
+          : `${ROUTES.api.areas.focus}?locale=${locale}`;
+        const res = await fetch(url, { cache: "no-store" });
+        const body = (await res.json()) as FocusResponse;
+        setSummary(body.summary ?? null);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("areas_focus_fetch_failed", err);
+        setSummary(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [locale],
+  );
 
+  // Refetch on mount and whenever the locale flips (primitive dep, loop-safe).
   useEffect(() => {
     void fetchFocus(false);
   }, [fetchFocus]);

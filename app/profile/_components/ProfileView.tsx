@@ -78,32 +78,29 @@ function formatRelative(iso: string, locale: "de" | "en"): string {
   return rtf.format(Math.round(diff / 86400), "day");
 }
 
-function StatusPill({ status, t }: { status: IntegrationStatus; t: (k: TranslationKey) => string }) {
-  if (status === "connected") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        {t("profile.status.connected")}
-      </span>
-    );
-  }
-  if (status === "error") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-        {t("profile.status.error")}
-      </span>
-    );
-  }
-  if (status === "never_connected") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-        {t("profile.status.neverConnected")}
-      </span>
-    );
-  }
+// Colored status dot — same semantics as the former StatusPill
+// (connected=emerald, error=red, never_connected=amber, not_configured=muted).
+const STATUS_DOT_CLASS: Record<IntegrationStatus, string> = {
+  connected: "bg-emerald-500",
+  error: "bg-red-500",
+  never_connected: "bg-amber-500",
+  not_configured: "bg-muted-foreground/40",
+};
+
+const STATUS_LABEL_KEY: Record<IntegrationStatus, TranslationKey> = {
+  connected: "profile.status.connected",
+  error: "profile.status.error",
+  never_connected: "profile.status.neverConnected",
+  not_configured: "profile.status.notConfigured",
+};
+
+function StatusDot({ status, t }: { status: IntegrationStatus; t: (k: TranslationKey) => string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-      {t("profile.status.notConfigured")}
-    </span>
+    <span
+      className={`inline-block size-2.5 shrink-0 rounded-full ${STATUS_DOT_CLASS[status]}`}
+      aria-label={t(STATUS_LABEL_KEY[status])}
+      title={t(STATUS_LABEL_KEY[status])}
+    />
   );
 }
 
@@ -185,7 +182,7 @@ export function ProfileView({ email }: { email: string }) {
         <p className="mt-1 font-mono text-sm text-muted-foreground">{email}</p>
       </header>
 
-      <section className="mt-10">
+      <section className="mt-8">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="text-lg font-semibold text-foreground">
             {t("profile.integrationsTitle")}
@@ -200,60 +197,51 @@ export function ProfileView({ email }: { email: string }) {
           </Button>
         </div>
 
-        <ul className="mt-4 space-y-3">
+        <ul className="mt-4 grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
           {CARDS.map((card) => {
             const result = data?.[card.key];
             const status: IntegrationStatus = result?.status ?? "not_configured";
             return (
               <li
                 key={card.key}
-                className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm"
+                className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">{t(card.nameKey)}</p>
-                      <span className="text-xs text-muted-foreground">{t(card.kindKey)}</span>
-                    </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <StatusPill status={status} t={t} />
-                      {result ? (
-                        <span className="text-xs text-muted-foreground">
-                          {t("profile.checked")} {formatRelative(result.checkedAt, locale)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {loading ? t("profile.loading") : t("profile.notChecked")}
-                        </span>
-                      )}
-                    </div>
-                    {result?.message && status === "error" ? (
-                      <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
-                        {result.message}
-                      </pre>
-                    ) : null}
+                <div className="flex items-center gap-2.5">
+                  <StatusDot status={status} t={t} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {t(card.nameKey)}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {result
+                        ? `${t("profile.checked")} ${formatRelative(result.checkedAt, locale)}`
+                        : loading
+                          ? t("profile.loading")
+                          : t("profile.notChecked")}
+                    </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    {card.key === "google" && status === "connected" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleDisconnectGoogle}
-                        disabled={disconnecting}
-                      >
-                        {disconnecting
-                          ? t("profile.disconnecting")
-                          : t("profile.disconnect")}
-                      </Button>
-                    ) : null}
-                    {card.key === "google" &&
-                    (status === "never_connected" || status === "error") ? (
-                      <Button asChild size="sm">
-                        <a href={ROUTES.api.google.connect}>{t("google.connect")}</a>
-                      </Button>
-                    ) : null}
-                  </div>
+                  {card.key === "google" && status === "connected" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnectGoogle}
+                      disabled={disconnecting}
+                    >
+                      {disconnecting ? t("profile.disconnecting") : t("profile.disconnect")}
+                    </Button>
+                  ) : null}
+                  {card.key === "google" &&
+                  (status === "never_connected" || status === "error") ? (
+                    <Button asChild size="sm">
+                      <a href={ROUTES.api.google.connect}>{t("google.connect")}</a>
+                    </Button>
+                  ) : null}
                 </div>
+                {result?.message && status === "error" ? (
+                  <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                    {result.message}
+                  </pre>
+                ) : null}
               </li>
             );
           })}
@@ -262,9 +250,13 @@ export function ProfileView({ email }: { email: string }) {
 
       <SettingsSection />
 
-      <ArchiveSweepSection />
-
-      <RoadmapDraftSection />
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-foreground">{t("profile.maintenanceTitle")}</h2>
+        <div className="mt-4 space-y-6">
+          <ArchiveSweepSection />
+          <RoadmapDraftSection />
+        </div>
+      </section>
     </div>
   );
 }

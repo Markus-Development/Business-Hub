@@ -20,6 +20,12 @@ export const translations = {
   "nav.journal": { de: "Journal", en: "Journal" },
   "nav.inbox": { de: "Inbox", en: "Inbox" },
   "nav.capture": { de: "Erfassen", en: "Capture" },
+  "nav.group.control": { de: "Steuerung", en: "Control" },
+  "nav.group.work": { de: "Arbeit", en: "Work" },
+  "nav.group.personal": { de: "Persönlich & Wissen", en: "Personal & Knowledge" },
+  "nav.menu": { de: "Menü", en: "Menu" },
+  "nav.collapseSidebar": { de: "Einklappen", en: "Collapse" },
+  "nav.expandSidebar": { de: "Ausklappen", en: "Expand" },
 
   "locale.de": { de: "DE", en: "DE" },
   "locale.en": { de: "EN", en: "EN" },
@@ -34,6 +40,11 @@ export const translations = {
   "projects.views.backlog": { de: "Backlog", en: "Backlog" },
   "projects.views.onhold": { de: "On Hold", en: "On Hold" },
   "projects.views.done": { de: "Erledigt", en: "Done" },
+
+  // Combined Status dropdown (replaces the old view-preset + "All statuses" filter).
+  "projects.scope.label": { de: "Status", en: "Status" },
+  "projects.scope.groupViews": { de: "Ansichten", en: "Views" },
+  "projects.scope.groupStatus": { de: "Status", en: "Status" },
 
   "projects.calendar.noDeadline": { de: "Kein Fälligkeitsdatum", en: "No deadline" },
 
@@ -248,6 +259,16 @@ export const translations = {
   "profile.kind.envBased": { de: "Token (.env)", en: "Token (.env)" },
   "profile.kind.oauth": { de: "OAuth", en: "OAuth" },
 
+  "profile.maintenanceTitle": { de: "Wartung", en: "Maintenance" },
+  "settings.windows.collapse": {
+    de: "Aufgabenfenster einklappen",
+    en: "Collapse task type windows",
+  },
+  "settings.windows.expand": {
+    de: "Aufgabenfenster ausklappen",
+    en: "Expand task type windows",
+  },
+
   "profile.archive.title": { de: "Archiv-Durchlauf", en: "Archive sweep" },
   "profile.archive.description": {
     de: "Archiviert Projekte und Ressourcen, die direkt in Notion auf Status „Archived“ gesetzt wurden.",
@@ -381,6 +402,31 @@ export const translations = {
   "settings.windows.invalid": {
     de: "Start muss vor Ende liegen.",
     en: "Start must be before end.",
+  },
+
+  "settings.horizon.title": { de: "Zeitblock-Horizont", en: "Time-block horizon" },
+  "settings.horizon.description": {
+    de: "Über wie viele Tage im Voraus die Zeitblock-Vorschläge geplant werden.",
+    en: "How many days ahead time-block suggestions are planned.",
+  },
+  "settings.horizon.days": { de: "{count} Tage", en: "{count} days" },
+
+  "settings.workday.title": { de: "Standard-Arbeitsfenster", en: "Default workday window" },
+  "settings.workday.description": {
+    de: "Globale Arbeitsstunden (0–23) für die Planung, wenn keine Aufgabenfenster gesetzt sind.",
+    en: "Global working hours (0–23) used for planning when no task type windows are set.",
+  },
+  "settings.workday.start": { de: "Startstunde", en: "Start hour" },
+  "settings.workday.end": { de: "Endstunde", en: "End hour" },
+  "settings.workday.invalid": {
+    de: "Start muss vor Ende liegen.",
+    en: "Start must be before end.",
+  },
+
+  "settings.defaultTab.title": { de: "Standard-Tab", en: "Default tab" },
+  "settings.defaultTab.description": {
+    de: "Welcher Tab beim Öffnen der App geladen wird.",
+    en: "Which tab loads when the app opens.",
   },
 
   "calendar.title": { de: "Kalender", en: "Calendar" },
@@ -1001,6 +1047,10 @@ export const translations = {
     de: "Ressource konnte nicht archiviert werden.",
     en: "Could not archive resource.",
   },
+  "resources.density.compact": { de: "Kompakt", en: "Compact" },
+  "resources.density.comfortable": { de: "Komfortabel", en: "Comfortable" },
+  "resources.density.toCompact": { de: "Kompakte Ansicht", en: "Compact view" },
+  "resources.density.toComfortable": { de: "Komfortable Ansicht", en: "Comfortable view" },
 
   "google.connect": { de: "Google verbinden", en: "Connect Google" },
   "google.connected.title": {
@@ -1406,6 +1456,53 @@ export const translations = {
   "development.updateError": {
     de: "Aktualisierung fehlgeschlagen.",
     en: "Update failed.",
+  },
+
+  // ===== Development — Add Dev Item dialog =====
+  "development.add.button": { de: "Hinzufügen", en: "Add" },
+  "development.add.title": { de: "Dev-Item hinzufügen", en: "Add dev item" },
+  "development.add.description": {
+    de: "Legt ein neues Entwicklungs-Item in der Projects-DB an (Department = Development).",
+    en: "Creates a new development item in the Projects DB (Department = Development).",
+  },
+  "development.add.name": { de: "Name", en: "Name" },
+  "development.add.namePlaceholder": {
+    de: "Was soll gebaut werden?",
+    en: "What should be built?",
+  },
+  "development.add.nameRequired": { de: "Name ist erforderlich.", en: "Name is required." },
+  "development.add.product": { de: "Produkt", en: "Product" },
+  "development.add.selectProduct": { de: "Produkt wählen", en: "Select product" },
+  "development.add.productRequired": {
+    de: "Produkt ist erforderlich.",
+    en: "Product is required.",
+  },
+  "development.add.devType": { de: "Dev-Typ", en: "Dev type" },
+  "development.add.selectDevType": { de: "Typ wählen", en: "Select type" },
+  "development.add.devTypeRequired": {
+    de: "Dev-Typ ist erforderlich.",
+    en: "Dev type is required.",
+  },
+  "development.add.department": { de: "Department", en: "Department" },
+  "development.add.priority": { de: "Priorität", en: "Priority" },
+  "development.add.dueDate": { de: "Fällig am", en: "Due date" },
+  "development.add.nextAction": { de: "Nächster Schritt", en: "Next action" },
+  "development.add.nextActionPlaceholder": {
+    de: "Der nächste konkrete Schritt",
+    en: "The next concrete step",
+  },
+  "development.add.notes": { de: "Notizen", en: "Notes" },
+  "development.add.notesPlaceholder": {
+    de: "Optional — wird als Seiteninhalt angehängt",
+    en: "Optional — appended as page body",
+  },
+  "development.add.cancel": { de: "Abbrechen", en: "Cancel" },
+  "development.add.submit": { de: "Anlegen", en: "Create" },
+  "development.add.creating": { de: "Wird angelegt …", en: "Creating …" },
+  "development.add.success": { de: "Dev-Item angelegt.", en: "Dev item created." },
+  "development.add.error": {
+    de: "Dev-Item konnte nicht angelegt werden.",
+    en: "Could not create dev item.",
   },
 
   // ===== Weekly Journal (read-only) =====
