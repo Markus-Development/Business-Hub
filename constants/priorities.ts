@@ -30,6 +30,12 @@ export function notionColour(name: string | null | undefined): string {
 
 // Light background fills matching Notion's tag palette — used as the `background`
 // on rendered option pills (Status / Area cells in the Projects table).
+//
+// NOTE: these *_MAP objects document the light-mode source values and seed the
+// `--pill-*` CSS custom properties in app/globals.css (:root). The helper functions
+// below DO NOT read these maps at render time — they return `var(--pill-…)` so dark
+// mode (.dark in globals.css) can override the fill/text per-theme for contrast. Keep
+// the maps in sync with the :root seed values if either changes.
 export const NOTION_COLOUR_BG_MAP: Record<string, string> = {
   default: "rgba(227,226,224,0.5)",
   gray:    "rgba(227,226,224,0.5)",
@@ -58,14 +64,20 @@ export const NOTION_COLOUR_TEXT_MAP: Record<string, string> = {
   red:     "#d44c47",
 };
 
+// The pill fill/text helpers return CSS-variable references (defined in
+// app/globals.css under :root with light values and .dark with higher-contrast
+// dark-mode overrides) rather than literal colours, so a theme switch repaints the
+// pills live. Unknown / null names fall back to the `default` pill vars.
+const KNOWN_PILL_COLOURS = new Set(Object.keys(NOTION_COLOUR_BG_MAP));
+
 export function notionColourBg(name: string | null | undefined): string {
-  if (!name) return NOTION_COLOUR_BG_MAP.default;
-  return NOTION_COLOUR_BG_MAP[name] ?? NOTION_COLOUR_BG_MAP.default;
+  const key = name && KNOWN_PILL_COLOURS.has(name) ? name : "default";
+  return `var(--pill-bg-${key})`;
 }
 
 export function notionColourText(name: string | null | undefined): string {
-  if (!name) return NOTION_COLOUR_TEXT_MAP.default;
-  return NOTION_COLOUR_TEXT_MAP[name] ?? NOTION_COLOUR_TEXT_MAP.default;
+  const key = name && KNOWN_PILL_COLOURS.has(name) ? name : "default";
+  return `var(--pill-text-${key})`;
 }
 
 // Priority traffic-light pills for the Projects table (High = red, Medium = amber,
@@ -77,6 +89,11 @@ export function notionColourText(name: string | null | undefined): string {
 // Projects-calendar already makes for Medium priority. The Medium text value
 // reuses that calendar amber (`oklch(0.68 0.16 75)`) verbatim so the two surfaces
 // agree. No hex; keep these confined to priority rendering only.
+//
+// As with the Notion maps above, these objects document the light-mode source
+// values and seed the `--pill-bg-{high,medium,low}` / `--pill-text-*` vars in
+// app/globals.css. priorityColourBg / priorityColourText return `var(--pill-…)` (with
+// per-theme .dark overrides), not these literals directly.
 export const PRIORITY_COLOUR_BG_MAP: Record<Priority, string> = {
   High: "oklch(0.94 0.04 25)",
   Medium: "oklch(0.95 0.05 75)",
@@ -91,14 +108,14 @@ export const PRIORITY_COLOUR_TEXT_MAP: Record<Priority, string> = {
 
 export function priorityColourBg(name: string | null | undefined): string {
   if (name && name in PRIORITY_COLOUR_BG_MAP) {
-    return PRIORITY_COLOUR_BG_MAP[name as Priority];
+    return `var(--pill-bg-${name.toLowerCase()})`;
   }
-  return NOTION_COLOUR_BG_MAP.default;
+  return "var(--pill-bg-default)";
 }
 
 export function priorityColourText(name: string | null | undefined): string {
   if (name && name in PRIORITY_COLOUR_TEXT_MAP) {
-    return PRIORITY_COLOUR_TEXT_MAP[name as Priority];
+    return `var(--pill-text-${name.toLowerCase()})`;
   }
-  return NOTION_COLOUR_TEXT_MAP.default;
+  return "var(--pill-text-default)";
 }

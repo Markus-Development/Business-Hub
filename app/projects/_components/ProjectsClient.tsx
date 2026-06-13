@@ -21,6 +21,7 @@ import { postProjectUpdate, type UpdateField } from "./api";
 import { useT } from "@/lib/i18n";
 import { PROJECT_VIEWS } from "@/constants/project-views";
 import { DEPARTMENTS } from "@/constants/departments";
+import { DEVELOPMENT_DEPARTMENT } from "@/constants/development";
 import { ROUTES } from "@/constants/routes";
 import type { Project, SelectOption } from "@/lib/notion";
 
@@ -167,7 +168,14 @@ export function ProjectsClient({ projects }: { projects: Project[] }) {
   const filteredItems = useMemo(() => {
     return items.filter((p) => {
       if (singleStatus && p.status !== singleStatus) return false;
-      if (departmentFilter && p.department !== departmentFilter) return false;
+      if (departmentFilter) {
+        if (p.department !== departmentFilter) return false;
+      } else if (p.department === DEVELOPMENT_DEPARTMENT) {
+        // No department filter: hide Development projects by default — they have
+        // their own Development tab (Tab 10). Selecting "Development" in the
+        // department filter brings them back via the branch above.
+        return false;
+      }
       if (priorityFilter && p.priority !== priorityFilter) return false;
       return true;
     });

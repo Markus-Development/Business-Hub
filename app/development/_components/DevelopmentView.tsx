@@ -239,6 +239,11 @@ export function DevelopmentView({ projects, notConfigured, error }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("development.search.placeholder")}
               className="h-9 w-full text-sm sm:w-[240px]"
+              name="dev-search"
+              autoComplete="off"
+              data-lpignore="true"
+              data-1p-ignore
+              data-form-type="other"
             />
           </div>
 

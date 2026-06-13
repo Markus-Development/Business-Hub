@@ -30,6 +30,12 @@ export const translations = {
   "locale.de": { de: "DE", en: "DE" },
   "locale.en": { de: "EN", en: "EN" },
 
+  "theme.label": { de: "Design", en: "Theme" },
+  "theme.light": { de: "Hell", en: "Light" },
+  "theme.dark": { de: "Dunkel", en: "Dark" },
+  "theme.system": { de: "System", en: "System" },
+  "theme.toggle": { de: "Design umschalten", en: "Toggle theme" },
+
   "projects.view.table": { de: "Tabelle", en: "Table" },
   "projects.view.kanban": { de: "Kanban", en: "Kanban" },
   "projects.view.calendar": { de: "Kalender", en: "Calendar" },

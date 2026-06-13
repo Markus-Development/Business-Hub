@@ -87,40 +87,110 @@
   --sidebar-accent-foreground: oklch(0.300 0.100 260);
   --sidebar-border: oklch(0.920 0.010 250);
   --sidebar-ring: oklch(0.580 0.180 256);
+
+  /* Pill (badge) fill + text colours — Status / Department / Dev-Type (Notion
+     palette) and Priority traffic-light pills. Read by notionColourBg / notionColourText
+     / priorityColourBg / priorityColourText in constants/priorities.ts via var(--…),
+     so dark mode (.dark below) can override them per-theme. These :root values are the
+     EXACT current light source values from constants/priorities.ts — light mode is
+     unchanged. */
+  --pill-bg-default: rgba(227,226,224,0.5);
+  --pill-bg-gray:    rgba(227,226,224,0.5);
+  --pill-bg-brown:   rgba(238,224,218,0.6);
+  --pill-bg-orange:  rgba(250,222,201,0.6);
+  --pill-bg-yellow:  rgba(253,236,200,0.6);
+  --pill-bg-green:   rgba(219,237,219,0.6);
+  --pill-bg-blue:    rgba(211,229,239,0.6);
+  --pill-bg-purple:  rgba(232,222,238,0.6);
+  --pill-bg-pink:    rgba(245,224,233,0.6);
+  --pill-bg-red:     rgba(255,226,221,0.6);
+  --pill-text-default: #787774;
+  --pill-text-gray:    #787774;
+  --pill-text-brown:   #976d57;
+  --pill-text-orange:  #d9730d;
+  --pill-text-yellow:  #cb912f;
+  --pill-text-green:   #448361;
+  --pill-text-blue:    #337ea9;
+  --pill-text-purple:  #9065b0;
+  --pill-text-pink:    #c14c8a;
+  --pill-text-red:     #d44c47;
+  /* Priority pills (High = red, Medium = amber, Low = green) */
+  --pill-bg-high:   oklch(0.94 0.04 25);
+  --pill-bg-medium: oklch(0.95 0.05 75);
+  --pill-bg-low:    oklch(0.94 0.05 150);
+  --pill-text-high:   oklch(0.55 0.17 25);
+  --pill-text-medium: oklch(0.68 0.16 75); /* reuses the Projects-calendar Medium amber */
+  --pill-text-low:    oklch(0.52 0.13 150);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Brand-tuned dark palette — blue/ink, not stock neutral gray. Keeps the brand
+     blue (~256 hue) as primary/ring/sidebar-primary and gives every surface a dark
+     blue-tinted (low-chroma, ~265 hue) base for a cohesive ink feel. */
+  --background: oklch(0.18 0.02 265);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.22 0.022 265);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.22 0.022 265);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.62 0.17 256);
+  --primary-foreground: oklch(0.985 0.005 250);
+  --secondary: oklch(0.27 0.02 262);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.27 0.02 262);
+  --muted-foreground: oklch(0.70 0.03 258);
+  --accent: oklch(0.30 0.04 260);
+  --accent-foreground: oklch(0.92 0.02 252);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.85 0.03 260 / 12%);
+  --input: oklch(0.85 0.03 260 / 16%);
+  --ring: oklch(0.62 0.17 256);
+  --chart-1: oklch(0.70 0.150 256);
+  --chart-2: oklch(0.78 0.120 230);
+  --chart-3: oklch(0.66 0.140 280);
+  --chart-4: oklch(0.74 0.090 200);
+  --chart-5: oklch(0.58 0.130 265);
+  --sidebar: oklch(0.20 0.022 265);
+  --sidebar-foreground: oklch(0.96 0.005 250);
+  --sidebar-primary: oklch(0.62 0.17 256);
+  --sidebar-primary-foreground: oklch(0.985 0.005 250);
+  --sidebar-accent: oklch(0.30 0.04 260);
+  --sidebar-accent-foreground: oklch(0.92 0.02 252);
+  --sidebar-border: oklch(0.85 0.03 260 / 12%);
+  --sidebar-ring: oklch(0.62 0.17 256);
+
+  /* Higher-contrast pill colours for dark mode (Notion-dark-tag style): a more
+     saturated, darker semi-transparent fill (~0.22–0.35 alpha) so the chip reads as
+     a coloured block on the dark card, paired with a BRIGHT label colour (high-
+     lightness same-hue) for AA-legible text. Hue identities preserved (blue→blue,
+     yellow→yellow, High=red / Medium=amber / Low=green). */
+  --pill-bg-default: oklch(0.65 0.012 260 / 0.22);
+  --pill-bg-gray:    oklch(0.65 0.012 260 / 0.22);
+  --pill-bg-brown:   oklch(0.58 0.07 55 / 0.30);
+  --pill-bg-orange:  oklch(0.65 0.15 50 / 0.28);
+  --pill-bg-yellow:  oklch(0.70 0.13 85 / 0.28);
+  --pill-bg-green:   oklch(0.62 0.15 150 / 0.28);
+  --pill-bg-blue:    oklch(0.60 0.15 250 / 0.30);
+  --pill-bg-purple:  oklch(0.58 0.16 300 / 0.30);
+  --pill-bg-pink:    oklch(0.62 0.18 350 / 0.28);
+  --pill-bg-red:     oklch(0.58 0.18 25 / 0.30);
+  --pill-text-default: oklch(0.82 0.012 260);
+  --pill-text-gray:    oklch(0.82 0.012 260);
+  --pill-text-brown:   oklch(0.82 0.06 55);
+  --pill-text-orange:  oklch(0.83 0.13 55);
+  --pill-text-yellow:  oklch(0.87 0.13 90);
+  --pill-text-green:   oklch(0.84 0.15 150);
+  --pill-text-blue:    oklch(0.83 0.12 250);
+  --pill-text-purple:  oklch(0.83 0.13 300);
+  --pill-text-pink:    oklch(0.85 0.14 350);
+  --pill-text-red:     oklch(0.81 0.16 25);
+  /* Priority pills */
+  --pill-bg-high:   oklch(0.58 0.18 25 / 0.32);
+  --pill-bg-medium: oklch(0.65 0.14 75 / 0.30);
+  --pill-bg-low:    oklch(0.60 0.15 150 / 0.30);
+  --pill-text-high:   oklch(0.81 0.16 25);
+  --pill-text-medium: oklch(0.85 0.14 80);
+  --pill-text-low:    oklch(0.84 0.15 150);
 }
 
 @layer base {

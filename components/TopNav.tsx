@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plug, Inbox, Menu } from "lucide-react";
 import { LocaleToggle } from "@/components/LocaleToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Sidebar } from "@/components/Sidebar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useT } from "@/lib/i18n";
@@ -81,6 +82,7 @@ export function TopNav() {
             <Inbox className="size-3.5" aria-hidden />
             {t("nav.capture")}
           </Link>
+          <ThemeToggle />
           <LocaleToggle />
           {googleConnected === false && (
             <a
