@@ -2,17 +2,14 @@ import { NextResponse } from "next/server";
 import {
   getClientPageBlocks,
   listNotionClients,
-  listProjectsByClient,
   type NotionBlock,
   type NotionClient,
-  type Project,
 } from "@/lib/notion";
 import {
   getContactInvoices,
   getContactLifetimeTurnover,
   type ZohoInvoice,
 } from "@/lib/zoho";
-import { isInCurrentMonth } from "@/lib/tz";
 import { supabaseServer } from "@/lib/supabase-server";
 import { TABLES } from "@/constants/tables";
 
@@ -24,7 +21,6 @@ export type ClientDetail = {
   notionBlocks: NotionBlock[];
   invoices: ZohoInvoice[];
   lifetimeTurnover: number;
-  monthlyTasks: Project[];
   templateOverrides: Record<string, string>;
 };
 
@@ -59,9 +55,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ zohoId: string
   }
 
   try {
-    // Resolve the Notion client record first so we know the client name for the
-    // Projects join. If no Notion record is linked, we'll skip the monthly-tasks
-    // join (no reliable name to filter on) and surface empty tasks instead.
+    // Resolve the Notion client record first so we can fetch its page body
+    // blocks. If no Notion record is linked we surface empty blocks instead.
     let notionRecord: NotionClient | null = null;
     try {
       const all = await listNotionClients();
@@ -80,15 +75,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ zohoId: string
     const settled = await Promise.allSettled([
       getContactInvoices(zohoId),
       getContactLifetimeTurnover(zohoId),
-      notionRecord ? listProjectsByClient(notionRecord.name) : Promise.resolve([] as Project[]),
       notionRecord ? getClientPageBlocks(notionRecord.pageId) : Promise.resolve([] as NotionBlock[]),
       fetchTemplateOverrides(zohoId),
     ]);
     const invoices = settled[0].status === "fulfilled" ? settled[0].value : [];
     const lifetimeTurnover = settled[1].status === "fulfilled" ? settled[1].value : 0;
-    const monthlyTasksAll = settled[2].status === "fulfilled" ? settled[2].value : [];
-    const notionBlocks = settled[3].status === "fulfilled" ? settled[3].value : [];
-    const templateOverrides = settled[4].status === "fulfilled" ? settled[4].value : {};
+    const notionBlocks = settled[2].status === "fulfilled" ? settled[2].value : [];
+    const templateOverrides = settled[3].status === "fulfilled" ? settled[3].value : {};
     for (let i = 0; i < settled.length; i++) {
       const s = settled[i];
       if (s.status === "rejected") {
@@ -97,20 +90,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ zohoId: string
       }
     }
 
-    // Filter projects to the current month. Use Due Date if set, otherwise the
-    // page's created_time (createdAt). This matches the generate-tasks
-    // idempotency window so the UI mirrors what regen would do.
-    const monthlyTasks = monthlyTasksAll.filter(
-      (p) => isInCurrentMonth(p.dueDate) || isInCurrentMonth(p.createdAt),
-    );
-
     const body: ClientDetail = {
       zohoContactId: zohoId,
       notion: notionRecord,
       notionBlocks,
       invoices,
       lifetimeTurnover,
-      monthlyTasks,
       templateOverrides,
     };
     return NextResponse.json(body);

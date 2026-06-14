@@ -18,7 +18,6 @@ type DetailCacheEntry = {
   detail: ClientDetailPayload | null;
   loading: boolean;
   hasOverdue: boolean | undefined;
-  doneTaskCount: number | undefined;
 };
 
 export function ClientsView() {
@@ -70,17 +69,16 @@ export function ClientsView() {
       ...prev,
       [zohoId]: prev[zohoId]
         ? { ...prev[zohoId], loading: true }
-        : { detail: null, loading: true, hasOverdue: undefined, doneTaskCount: undefined },
+        : { detail: null, loading: true, hasOverdue: undefined },
     }));
     try {
       const res = await fetch(ROUTES.api.clients.detail(zohoId), { cache: "no-store" });
       if (!res.ok) throw new Error(`http_${res.status}`);
       const body = (await res.json()) as ClientDetailPayload;
       const hasOverdue = body.invoices.some((i) => i.status === "overdue");
-      const doneTaskCount = body.monthlyTasks.filter((p) => p.status === "Done").length;
       setDetails((prev) => ({
         ...prev,
-        [zohoId]: { detail: body, loading: false, hasOverdue, doneTaskCount },
+        [zohoId]: { detail: body, loading: false, hasOverdue },
       }));
     } catch (err) {
       toast.error(tRef.current("clients.errorLoadDetail"));
@@ -92,7 +90,6 @@ export function ClientsView() {
           detail: null,
           loading: false,
           hasOverdue: undefined,
-          doneTaskCount: undefined,
         },
       }));
     }
@@ -108,11 +105,6 @@ export function ClientsView() {
     void loadDetail(selectedZohoId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedZohoId]);
-
-  // Re-fetch helper called by sub-components after writes.
-  const refreshSelectedDetail = useCallback(async () => {
-    if (selectedZohoId) await loadDetail(selectedZohoId);
-  }, [selectedZohoId, loadDetail]);
 
   // Patch the in-memory client (no refetch) — used after metadata edits so the
   // list row updates immediately without a full /api/clients round-trip.
@@ -243,7 +235,6 @@ export function ClientsView() {
             client={selectedClient}
             detail={selectedDetailEntry?.detail ?? null}
             loading={selectedDetailEntry?.loading ?? false}
-            onRefresh={refreshSelectedDetail}
             onPatchClient={patchClientInPlace}
           />
         </div>

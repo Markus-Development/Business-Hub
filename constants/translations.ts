@@ -12,6 +12,8 @@ export const translations = {
   "nav.digest": { de: "KI-Briefing", en: "AI Digest" },
   "nav.calendar": { de: "Kalender", en: "Calendar" },
   "nav.clients": { de: "Kunden", en: "Clients" },
+  "nav.einnahmen": { de: "Einnahmen", en: "Revenue" },
+  "nav.fulfillment": { de: "Fulfillment", en: "Fulfillment" },
   "nav.areas": { de: "Bereiche", en: "Areas" },
   "nav.resources": { de: "Ressourcen", en: "Resources" },
   "nav.calls": { de: "Calls", en: "Calls" },
@@ -598,25 +600,9 @@ export const translations = {
   "clients.invoiceStatus.viewed": { de: "Angesehen", en: "Viewed" },
   "clients.invoiceStatus.void": { de: "Storniert", en: "Void" },
 
-  "clients.tasks.title": { de: "Monatliche Aufgaben", en: "Monthly tasks" },
-  "clients.tasks.generate": { de: "Aufgaben erstellen", en: "Generate tasks" },
-  "clients.tasks.generating": { de: "Wird erstellt …", en: "Generating…" },
-  "clients.tasks.alreadyGenerated": {
-    de: "Aufgaben für diesen Monat bereits erstellt.",
-    en: "Tasks already generated this month.",
-  },
-  "clients.tasks.notCreated": { de: "Nicht erstellt", en: "Not created" },
-  "clients.tasks.created": { de: "Aufgaben erstellt.", en: "Tasks created." },
-  "clients.tasks.errorCreate": {
-    de: "Aufgaben konnten nicht erstellt werden.",
-    en: "Could not create tasks.",
-  },
-  "clients.tasks.errorUpdate": {
-    de: "Aufgabenstatus konnte nicht aktualisiert werden.",
-    en: "Could not update task status.",
-  },
-  "clients.tasks.statusUpdated": { de: "Status aktualisiert.", en: "Status updated." },
-
+  // Monthly-task labels (singular `clients.task.*`) are shared with the WhatsApp
+  // templates — kept. The plural `clients.tasks.*` checklist keys were removed
+  // with the monthly-task generation UI (replaced by the Fulfillment tab).
   "clients.task.Book a Call": { de: "Anruf vereinbaren", en: "Book a Call" },
   "clients.task.Get Transactions": { de: "Transaktionen einholen", en: "Get Transactions" },
   "clients.task.Prepare Call": { de: "Anruf vorbereiten", en: "Prepare Call" },
@@ -1570,6 +1556,140 @@ export const translations = {
     en: "The current week ({kw}) is not closed yet. Add your review in Notion.",
   },
   "journal.overdue.cta": { de: "In Notion öffnen", en: "Open in Notion" },
+
+  // ===== Fulfillment (monthly checkbox grid over all clients) ================
+  "fulfillment.title": { de: "Fulfillment", en: "Fulfillment" },
+  "fulfillment.subtitle": {
+    de: "Monatlicher Fortschritt je Kunde",
+    en: "Monthly progress per client",
+  },
+  "fulfillment.notConfigured": {
+    de: "Die Fulfillment-Datenbank ist noch nicht eingerichtet. Lege sie mit scripts/create-fulfillment-db.mjs an und setze NOTION_FULFILLMENT_DB_ID.",
+    en: "The Fulfillment database is not set up yet. Create it with scripts/create-fulfillment-db.mjs and set NOTION_FULFILLMENT_DB_ID.",
+  },
+  "fulfillment.error": {
+    de: "Fulfillment konnte nicht geladen werden.",
+    en: "Could not load fulfillment.",
+  },
+  "fulfillment.empty": {
+    de: "Für diesen Monat wurde noch nichts generiert.",
+    en: "Nothing generated for this month yet.",
+  },
+  "fulfillment.emptyHint": {
+    de: "Klicke auf „Monat generieren“, um pro Kunde eine Zeile anzulegen.",
+    en: "Click “Generate month” to create one row per client.",
+  },
+  "fulfillment.loading": { de: "Wird geladen…", en: "Loading…" },
+  // Month switcher
+  "fulfillment.month.prev": { de: "Vorheriger Monat", en: "Previous month" },
+  "fulfillment.month.next": { de: "Nächster Monat", en: "Next month" },
+  "fulfillment.month.current": { de: "Dieser Monat", en: "This month" },
+  // Show/hide the not-active (Paused/Inactive) clients
+  "fulfillment.showMuted": {
+    de: "Inaktive/Pausierte anzeigen",
+    en: "Show inactive/paused",
+  },
+  // Generate
+  "fulfillment.generate": { de: "Monat generieren", en: "Generate month" },
+  "fulfillment.generating": { de: "Generiere…", en: "Generating…" },
+  "fulfillment.generate.success": {
+    de: "{count} Kunden-Zeile(n) angelegt.",
+    en: "Created {count} client row(s).",
+  },
+  "fulfillment.generate.none": {
+    de: "Alle Kunden haben bereits eine Zeile in diesem Monat.",
+    en: "Every client already has a row this month.",
+  },
+  "fulfillment.generate.partial": {
+    de: "{count} angelegt, {failed} fehlgeschlagen.",
+    en: "{count} created, {failed} failed.",
+  },
+  "fulfillment.generate.error": {
+    de: "Generieren fehlgeschlagen.",
+    en: "Generation failed.",
+  },
+  // Table headers
+  "fulfillment.col.number": { de: "Nr.", en: "No." },
+  "fulfillment.col.name": { de: "Kunde", en: "Client" },
+  "fulfillment.col.status": { de: "Status", en: "Status" },
+  // Stage column headers (also used as checkbox labels). Keys must mirror the
+  // FULFILLMENT_STAGES values exactly via `fulfillment.stage.<stage>`.
+  "fulfillment.stage.Call Termin": { de: "Call Termin", en: "Call booked" },
+  "fulfillment.stage.Transaktionen": { de: "Transaktionen", en: "Transactions" },
+  "fulfillment.stage.Ready": { de: "Ready", en: "Ready" },
+  "fulfillment.stage.Fertig": { de: "Fertig", en: "Done" },
+  // Status pill
+  "fulfillment.status.active": { de: "Aktiv", en: "Active" },
+  "fulfillment.status.paused": { de: "Pausiert", en: "Paused" },
+  "fulfillment.status.unknown": { de: "—", en: "—" },
+  // Toggle toast
+  "fulfillment.toast.updateError": {
+    de: "Aktualisierung fehlgeschlagen.",
+    en: "Update failed.",
+  },
+  "fulfillment.loadError": {
+    de: "Monat konnte nicht geladen werden.",
+    en: "Could not load month.",
+  },
+
+  // ===== Einnahmen (revenue grid) ==========================================
+  "einnahmen.title": { de: "Einnahmen", en: "Revenue" },
+  "einnahmen.subtitle": {
+    de: "Monatsübersicht aller Kunden — bezahlt, offen, überfällig und Prognose.",
+    en: "Monthly overview across all clients — paid, open, overdue and forecast.",
+  },
+  "einnahmen.notConfigured": {
+    de: "Einnahmen sind nicht konfiguriert (Notion Clients DB oder Zoho-Zugang fehlt).",
+    en: "Revenue is not configured (Notion Clients DB or Zoho access is missing).",
+  },
+  "einnahmen.loading": { de: "Lädt …", en: "Loading …" },
+  "einnahmen.error": { de: "Jahr konnte nicht geladen werden.", en: "Could not load year." },
+  "einnahmen.empty": { de: "Keine Kunden für dieses Jahr.", en: "No clients for this year." },
+  "einnahmen.emptyHint": {
+    de: "Sobald ein Kunde mit Zoho-Kontakt-ID verknüpft ist, erscheint er hier.",
+    en: "A client appears here once it is linked via its Zoho contact ID.",
+  },
+  // Year navigation
+  "einnahmen.year.prev": { de: "Vorheriges Jahr", en: "Previous year" },
+  "einnahmen.year.next": { de: "Nächstes Jahr", en: "Next year" },
+  "einnahmen.year.current": { de: "Dieses Jahr", en: "This year" },
+  // Grid columns
+  "einnahmen.col.client": { de: "Kunde", en: "Client" },
+  "einnahmen.col.total": { de: "Gesamt", en: "Total" },
+  // Cell status labels (also used via `einnahmen.status.<status>`)
+  "einnahmen.status.paid": { de: "Bezahlt", en: "Paid" },
+  "einnahmen.status.open": { de: "Offen", en: "Open" },
+  "einnahmen.status.overdue": { de: "Überfällig", en: "Overdue" },
+  "einnahmen.status.forecast": { de: "Prognose", en: "Forecast" },
+  // invoiceSent marker (icon aria/title)
+  "einnahmen.invoiceSent": { de: "Rechnung gestellt", en: "Invoice sent" },
+  // Footer band
+  "einnahmen.footer.real": { de: "Real", en: "Actual" },
+  "einnahmen.footer.zukunft": { de: "Zukunft", en: "Upcoming" },
+  "einnahmen.footer.ueberfaellig": { de: "Überfällig", en: "Overdue" },
+  "einnahmen.footer.gesamt": { de: "Gesamt", en: "Total" },
+  "einnahmen.footer.kosten": { de: "Kosten", en: "Costs" },
+  "einnahmen.footer.gewinn": { de: "Gewinn", en: "Profit" },
+  // Drawer
+  "einnahmen.drawer.title": { de: "Kunde", en: "Client" },
+  "einnahmen.drawer.monthlyFee": { de: "Monatliche Gebühr", en: "Monthly fee" },
+  "einnahmen.drawer.timeline": { de: "Jahresverlauf", en: "Year timeline" },
+  "einnahmen.drawer.payments": { de: "Zahlungshistorie", en: "Payment history" },
+  "einnahmen.drawer.noPayments": {
+    de: "Keine Zahlungen für dieses Jahr.",
+    en: "No payments for this year.",
+  },
+  "einnahmen.drawer.paymentsError": {
+    de: "Zahlungen konnten nicht geladen werden.",
+    en: "Could not load payments.",
+  },
+  // Payment-history columns
+  "einnahmen.payment.date": { de: "Datum", en: "Date" },
+  "einnahmen.payment.amount": { de: "Betrag", en: "Amount" },
+  "einnahmen.payment.account": { de: "Konto", en: "Account" },
+  "einnahmen.payment.month": { de: "Monat", en: "Month" },
+  "einnahmen.payment.reference": { de: "Referenz", en: "Reference" },
+  "einnahmen.payment.unassigned": { de: "—", en: "—" },
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof translations;

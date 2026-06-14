@@ -5,12 +5,14 @@ import {
   Sparkles,
   CalendarDays,
   Users,
+  ClipboardCheck,
   LayoutGrid,
   BookOpen,
   BookMarked,
   NotebookPen,
   Phone,
   Gamepad2,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
@@ -36,6 +38,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: ROUTES.pages.digest, label: "nav.digest", icon: Sparkles },
       { href: ROUTES.pages.calendar, label: "nav.calendar", icon: CalendarDays },
+      { href: ROUTES.pages.einnahmen, label: "nav.einnahmen", icon: Coins },
       { href: ROUTES.pages.inbox, label: "nav.inbox", icon: Inbox },
     ],
   },
@@ -46,6 +49,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: ROUTES.pages.development, label: "nav.development", icon: Code2 },
       { href: ROUTES.pages.areas, label: "nav.areas", icon: LayoutGrid },
       { href: ROUTES.pages.clients, label: "nav.clients", icon: Users },
+      { href: ROUTES.pages.fulfillment, label: "nav.fulfillment", icon: ClipboardCheck },
       { href: ROUTES.pages.calls, label: "nav.calls", icon: Phone },
     ],
   },
