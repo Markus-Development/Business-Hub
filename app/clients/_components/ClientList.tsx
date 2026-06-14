@@ -1,7 +1,6 @@
 "use client";
 
 import { useLocale, useT } from "@/lib/i18n";
-import { MONTHLY_TASK_NAMES } from "@/constants/client-tasks";
 import {
   clientHealth,
   formatEur,
@@ -13,10 +12,7 @@ type DetailCacheEntry = {
   detail: unknown;
   loading: boolean;
   hasOverdue: boolean | undefined;
-  doneTaskCount: number | undefined;
 };
-
-const TOTAL_TASKS = MONTHLY_TASK_NAMES.length;
 
 export function ClientList({
   clients,
@@ -87,10 +83,6 @@ export function ClientList({
           clients.map((c) => {
             const entry = details[c.zohoContactId];
             const health = clientHealth(c, entry?.hasOverdue);
-            const taskCount =
-              entry?.doneTaskCount !== undefined
-                ? `${entry.doneTaskCount}/${TOTAL_TASKS}`
-                : "–";
             const active = selectedZohoId === c.zohoContactId;
             return (
               <li key={c.zohoContactId}>
@@ -113,9 +105,6 @@ export function ClientList({
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <HealthPill health={health} />
-                    <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
-                      {taskCount}
-                    </span>
                   </div>
                 </button>
               </li>

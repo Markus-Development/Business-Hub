@@ -33,21 +33,6 @@ export type ZohoInvoice = {
   status: string;
 };
 
-export type NotionProject = {
-  id: string;
-  url: string;
-  name: string;
-  status: "Active" | "On Hold" | "Done" | null;
-  department: string | null;
-  priority: "High" | "Medium" | "Low" | null;
-  outcome: string;
-  nextAction: string;
-  dueDate: string | null;
-  estimatedMinutes: number | null;
-  client: string;
-  createdAt: string;
-};
-
 export type ClientDetail = {
   zohoContactId: string;
   notion: {
@@ -68,7 +53,6 @@ export type ClientDetail = {
   notionBlocks: import("@/lib/notion").NotionBlock[];
   invoices: ZohoInvoice[];
   lifetimeTurnover: number;
-  monthlyTasks: NotionProject[];
   templateOverrides: Record<string, string>;
 };
 

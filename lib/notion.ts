@@ -517,65 +517,6 @@ export async function updateClientField(
   await notion.pages.update({ page_id: pageId, properties: properties as any });
 }
 
-// ===== Projects scoped to a client =========================================
-
-// Filters the Projects DB to rows whose `Client` rich_text contains `clientName`.
-// Lightweight join used by the Clients tab — both for "this month's tasks" display
-// and for the generate-tasks idempotency check.
-export async function listProjectsByClient(clientName: string): Promise<Project[]> {
-  if (clientName.trim().length === 0) return [];
-  const dataSourceId = await getProjectsDataSourceId();
-  const projects: Project[] = [];
-  let startCursor: string | undefined = undefined;
-  do {
-    const resp: any = await notion.dataSources.query({
-      data_source_id: dataSourceId,
-      filter: { property: "Client", rich_text: { contains: clientName } },
-      page_size: 100,
-      start_cursor: startCursor,
-    } as any);
-    for (const page of resp.results ?? []) {
-      if (page && page.object === "page" && "properties" in page) {
-        projects.push(toProject(page));
-      }
-    }
-    startCursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
-  } while (startCursor);
-  return projects;
-}
-
-// Creates a Project page in the Notion Projects DB with arbitrary client + due date.
-// Wider input surface than `createProject` (which is fed by the Projects tab dialog
-// and never sets `Client`). Used by the Clients tab to spawn this-month tasks.
-export async function createClientProject(input: {
-  name: string;
-  client: string;
-  status: Status;
-  department: string;
-  priority: Priority;
-  dueDate: string | null;
-}): Promise<Project> {
-  const dataSourceId = await getProjectsDataSourceId();
-  const properties = {
-    ...buildPropertyBody("Name", input.name),
-    ...buildPropertyBody("Status", input.status),
-    ...buildPropertyBody("Department", input.department),
-    ...buildPropertyBody("Priority", input.priority),
-    ...buildPropertyBody("Due Date", input.dueDate),
-    Client: {
-      type: "rich_text",
-      rich_text: input.client
-        ? [{ type: "text", text: { content: input.client } }]
-        : [],
-    },
-  };
-  const page = (await notion.pages.create({
-    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
-    properties: properties as any,
-  })) as any;
-  return toProject(page);
-}
-
 // ===== Areas DB ============================================================
 // The Areas DB is created via scripts/create-areas-db.mjs and seeded from
 // /roadmap.md. NOTION_AREAS_DB_ID must be set in .env.local. Status is a
@@ -1842,4 +1783,141 @@ export async function listErfolge(): Promise<Erfolg[]> {
     if (!startCursor) break;
   }
   return items;
+}
+
+// ===========================================================================
+// Fulfillment (Tab "Fulfillment") — one page per client per month in the
+// "🚚 10 Fulfillment" DB (NOTION_FULFILLMENT_DB_ID). Tracks the four fulfillment
+// stages as checkboxes; the Client property is a relation back into the Clients
+// DB. Notion is the source of truth (no Supabase). The "paused" state is NOT
+// stored here — it is joined live from the Clients DB by the API route. Mirrors
+// the listBuecher / listFreizeit resolver pattern.
+// ===========================================================================
+
+export type NotionFulfillmentItem = {
+  pageId: string;
+  url: string;
+  // The related Clients-DB page id (first relation entry), or null when unset.
+  clientPageId: string | null;
+  // The month this row belongs to, stored as "YYYY-MM-01".
+  month: string | null;
+  callTermin: boolean;
+  transaktionen: boolean;
+  ready: boolean;
+  fertig: boolean;
+  notiz: string | null;
+};
+
+let fulfillmentDataSourceId: string | null = null;
+
+async function getFulfillmentDataSourceId(): Promise<string> {
+  if (fulfillmentDataSourceId) return fulfillmentDataSourceId;
+  const dbId = process.env.NOTION_FULFILLMENT_DB_ID;
+  if (!dbId) throw new Error("NOTION_FULFILLMENT_DB_ID is not set");
+  const db = (await notion.databases.retrieve({ database_id: dbId })) as unknown as {
+    data_sources?: { id: string; name: string }[];
+  };
+  const ds = db.data_sources?.[0];
+  if (!ds) {
+    throw new Error(
+      "Fulfillment DB has no data_sources — is the integration shared with the database?",
+    );
+  }
+  fulfillmentDataSourceId = ds.id;
+  return ds.id;
+}
+
+function asFirstRelationId(prop: any): string | null {
+  if (!prop || prop.type !== "relation" || !Array.isArray(prop.relation)) return null;
+  return prop.relation[0]?.id ?? null;
+}
+
+function toFulfillment(page: any): NotionFulfillmentItem {
+  const p = page.properties as Record<string, unknown>;
+  const get = (n: string) => p[n] as any;
+  return {
+    pageId: page.id,
+    url: page.url,
+    clientPageId: asFirstRelationId(get("Client")),
+    month: asDate(get("Monat")),
+    callTermin: asCheckbox(get("Call Termin")),
+    transaktionen: asCheckbox(get("Transaktionen")),
+    ready: asCheckbox(get("Ready")),
+    fertig: asCheckbox(get("Fertig")),
+    notiz: asRichText(get("Notiz")) || null,
+  };
+}
+
+// All fulfillment rows for a given month. `monthFirstOfMonthIso` is the
+// "YYYY-MM-01" ISO date stored on the `Monat` property. Filters via `date.equals`
+// so only the requested month's rows return.
+export async function listFulfillmentItems(
+  monthFirstOfMonthIso: string,
+): Promise<NotionFulfillmentItem[]> {
+  const dataSourceId = await getFulfillmentDataSourceId();
+  const items: NotionFulfillmentItem[] = [];
+  let startCursor: string | undefined = undefined;
+  // Cap at 5 pages (500 rows) — far above the expected one-row-per-client volume.
+  for (let pageCount = 0; pageCount < 5; pageCount++) {
+    const resp: any = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: { property: "Monat", date: { equals: monthFirstOfMonthIso } },
+      page_size: 100,
+      start_cursor: startCursor,
+    } as any);
+    for (const page of resp.results ?? []) {
+      if (page && page.object === "page" && "properties" in page) {
+        items.push(toFulfillment(page));
+      }
+    }
+    if (!resp.has_more) break;
+    startCursor = resp.next_cursor ?? undefined;
+    if (!startCursor) break;
+  }
+  return items;
+}
+
+// Creates one fulfillment row for a client in a given month. All four stage
+// checkboxes default to false. `monthIso` is the "YYYY-MM-01" date.
+export async function createFulfillmentRow(draft: {
+  name: string;
+  clientPageId: string;
+  monthIso: string;
+}): Promise<NotionFulfillmentItem> {
+  const dataSourceId = await getFulfillmentDataSourceId();
+  const properties: Record<string, any> = {
+    Name: { type: "title", title: [{ type: "text", text: { content: draft.name } }] },
+    Client: { type: "relation", relation: [{ id: draft.clientPageId }] },
+    Monat: { type: "date", date: { start: draft.monthIso } },
+    "Call Termin": { type: "checkbox", checkbox: false },
+    Transaktionen: { type: "checkbox", checkbox: false },
+    Ready: { type: "checkbox", checkbox: false },
+    Fertig: { type: "checkbox", checkbox: false },
+  };
+  const page = (await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: dataSourceId } as any,
+    properties: properties as any,
+  })) as any;
+  return toFulfillment(page);
+}
+
+// Patch one stage checkbox or the Notiz field on a fulfillment row. Stage names
+// are validated against FULFILLMENT_STAGES by the caller (the PATCH route); this
+// helper builds the correct checkbox / rich_text property body.
+export async function updateFulfillmentField(
+  pageId: string,
+  field: string,
+  value: boolean | string | null,
+): Promise<void> {
+  const properties: Record<string, any> = {};
+  if (field === "Notiz") {
+    const text = typeof value === "string" ? value : "";
+    properties.Notiz = {
+      type: "rich_text",
+      rich_text: text ? [{ type: "text", text: { content: text } }] : [],
+    };
+  } else {
+    properties[field] = { type: "checkbox", checkbox: value === true };
+  }
+  await notion.pages.update({ page_id: pageId, properties: properties as any });
 }

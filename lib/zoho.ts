@@ -281,3 +281,139 @@ export async function pingZoho(): Promise<void> {
   // probe — using /contacts here would be more expensive and still need org_id.
   await zohoGet<unknown>("/organizations", {});
 }
+
+// ----- Year-wide reads for the Einnahmen grid (org-wide, paginated) ---------
+// Added for the Einnahmen tab (Phase 1 backend). These load ALL invoices /
+// customer payments for a calendar year across the whole org in a few paginated
+// calls — NOT one request per customer. Everything above is unchanged.
+
+export type ZohoYearInvoice = {
+  invoice_id: string;
+  invoice_number: string;
+  customer_id: string;
+  customer_name: string;
+  date: string; // invoice date — the month bucket
+  due_date: string;
+  status: string;
+  total: number; // org is tax-free (0% VAT) so total == net (verified Phase 0)
+  balance: number; // open amount
+};
+
+export type ZohoYearPayment = {
+  payment_id: string;
+  customer_id: string;
+  date: string;
+  amount: number;
+  payment_mode: string;
+  payment_mode_formatted: string;
+  account_name: string;
+  reference_number: string;
+  invoice_numbers: string; // comma-separated invoice numbers this payment settled
+};
+
+function asStr(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+function asNum(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+type YearListResponse = { page_context?: { has_more_page?: boolean } } & Record<string, unknown>;
+
+// Org-wide, paginated. Draft invoices are excluded (not "sent"). NET = total (org
+// is tax-free). The documented date_start/date_end range filter is used, plus a
+// client-side year-prefix guard so a malformed/ignored range param can never leak
+// other years into the grid. Page cap 50 (= 10k invoices) is a runaway backstop.
+export async function listInvoicesForYear(year: number): Promise<ZohoYearInvoice[]> {
+  const dateStart = `${year}-01-01`;
+  const dateEnd = `${year}-12-31`;
+  const yearPrefix = `${year}-`;
+  const out: ZohoYearInvoice[] = [];
+  let page = 1;
+  while (page <= 50) {
+    const data = await zohoGet<YearListResponse>("/invoices", {
+      date_start: dateStart,
+      date_end: dateEnd,
+      page,
+      per_page: ZOHO_PAGE_SIZE,
+    });
+    const rows = Array.isArray(data.invoices)
+      ? (data.invoices as Array<Record<string, unknown>>)
+      : [];
+    for (const r of rows) {
+      const id = asStr(r.invoice_id);
+      if (!id) continue;
+      const status = asStr(r.status);
+      if (status === "draft") continue; // drafts are not "sent"
+      const date = asStr(r.date);
+      if (!date.startsWith(yearPrefix)) continue;
+      out.push({
+        invoice_id: id,
+        invoice_number: asStr(r.invoice_number),
+        customer_id: asStr(r.customer_id),
+        customer_name: asStr(r.customer_name),
+        date,
+        due_date: asStr(r.due_date),
+        status,
+        total: asNum(r.total),
+        balance: asNum(r.balance),
+      });
+    }
+    // page_context can be null on some list endpoints — fall back to "page was full".
+    const more = data.page_context?.has_more_page ?? rows.length === ZOHO_PAGE_SIZE;
+    if (!more) break;
+    page += 1;
+  }
+  return out;
+}
+
+// Org-wide, paginated. The customerpayments list endpoint's date-range support is
+// NOT documented as date_start/date_end, so we pass them best-effort AND filter
+// client-side by the year prefix (defense-in-depth — correct regardless of whether
+// Zoho honours the params). The response array key is read defensively under both
+// `customerpayments` and `customer_payments`.
+export async function listCustomerPaymentsForYear(year: number): Promise<ZohoYearPayment[]> {
+  const dateStart = `${year}-01-01`;
+  const dateEnd = `${year}-12-31`;
+  const yearPrefix = `${year}-`;
+  const out: ZohoYearPayment[] = [];
+  let page = 1;
+  while (page <= 50) {
+    const data = await zohoGet<YearListResponse>("/customerpayments", {
+      date_start: dateStart,
+      date_end: dateEnd,
+      page,
+      per_page: ZOHO_PAGE_SIZE,
+    });
+    const rows = (
+      Array.isArray(data.customerpayments)
+        ? data.customerpayments
+        : Array.isArray(data.customer_payments)
+          ? data.customer_payments
+          : []
+    ) as Array<Record<string, unknown>>;
+    for (const r of rows) {
+      const id = asStr(r.payment_id);
+      if (!id) continue;
+      const date = asStr(r.date);
+      if (!date.startsWith(yearPrefix)) continue;
+      out.push({
+        payment_id: id,
+        customer_id: asStr(r.customer_id),
+        date,
+        amount: asNum(r.amount),
+        payment_mode: asStr(r.payment_mode),
+        payment_mode_formatted: asStr(r.payment_mode_formatted),
+        account_name: asStr(r.account_name),
+        reference_number: asStr(r.reference_number),
+        invoice_numbers: asStr(r.invoice_numbers),
+      });
+    }
+    const more = data.page_context?.has_more_page ?? rows.length === ZOHO_PAGE_SIZE;
+    if (!more) break;
+    page += 1;
+  }
+  return out;
+}

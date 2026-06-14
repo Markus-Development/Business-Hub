@@ -14,8 +14,6 @@ const calendarEvent = (id: string) => `/api/calendar/events/${encodeURIComponent
 
 const clientDetail = (zohoId: string) =>
   `/api/clients/${encodeURIComponent(zohoId)}`;
-const clientGenerateTasks = (zohoId: string) =>
-  `/api/clients/${encodeURIComponent(zohoId)}/generate-tasks`;
 const clientNotionPatch = (zohoId: string) =>
   `/api/clients/${encodeURIComponent(zohoId)}/notion`;
 const clientTemplates = (zohoId: string) =>
@@ -23,6 +21,9 @@ const clientTemplates = (zohoId: string) =>
 
 const areasBlocks = (id: string) => `/api/areas/${encodeURIComponent(id)}/blocks`;
 const areasUpdate = (id: string) => `/api/areas/${encodeURIComponent(id)}/update`;
+
+const einnahmenClient = (zohoId: string) =>
+  `/api/einnahmen/client/${encodeURIComponent(zohoId)}`;
 
 export const ROUTES = {
   pages: {
@@ -33,6 +34,8 @@ export const ROUTES = {
     digest: "/digest",
     calendar: "/calendar",
     clients: "/clients",
+    einnahmen: "/einnahmen",
+    fulfillment: "/fulfillment",
     areas: "/areas",
     areasManage: "/areas/manage",
     areasReview: "/areas/review",
@@ -58,6 +61,13 @@ export const ROUTES = {
     development: {
       list: "/api/development",
     },
+    // Einnahmen — read-only revenue grid (Phase 1). `grid` returns the 12-month
+    // grid across all joined clients; `client(zohoId)` returns one client's 12
+    // cells + payment history.
+    einnahmen: {
+      grid: "/api/einnahmen",
+      client: einnahmenClient,
+    },
     digest: {
       daily: "/api/digest/daily",
       dailyForce: "/api/digest/daily?force=true",
@@ -72,9 +82,16 @@ export const ROUTES = {
     clients: {
       list: "/api/clients",
       detail: clientDetail,
-      generateTasks: clientGenerateTasks,
       notionPatch: clientNotionPatch,
       templates: clientTemplates,
+    },
+    // Fulfillment — monthly checkbox grid over all clients. `list` reads a
+    // month's rows joined with the Clients DB; `generate` creates missing rows
+    // for the month; `item` patches a single stage checkbox.
+    fulfillment: {
+      list: "/api/fulfillment",
+      generate: "/api/fulfillment/generate",
+      item: (id: string) => `/api/fulfillment/${encodeURIComponent(id)}`,
     },
     areas: {
       list: "/api/areas",

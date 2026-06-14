@@ -16,7 +16,6 @@ import { useLocale, useT } from "@/lib/i18n";
 import { ROUTES } from "@/constants/routes";
 import { PageBodyRenderer } from "@/app/projects/_components/PageBodyRenderer";
 import { InvoiceList } from "./InvoiceList";
-import { MonthlyTaskChecklist } from "./MonthlyTaskChecklist";
 import { WhatsAppTemplates } from "./WhatsAppTemplates";
 import {
   formatEur,
@@ -29,7 +28,6 @@ type ClientDetailProps = {
   client: MergedClient | null;
   detail: ClientDetailPayload | null;
   loading: boolean;
-  onRefresh: () => Promise<void>;
   onPatchClient: (zohoId: string, patch: Partial<MergedClient>) => void;
 };
 
@@ -37,7 +35,6 @@ export function ClientDetail({
   client,
   detail,
   loading,
-  onRefresh,
   onPatchClient,
 }: ClientDetailProps) {
   const t = useT();
@@ -126,19 +123,6 @@ export function ClientDetail({
         ) : (
           <InvoiceList invoices={detail?.invoices ?? []} />
         )}
-      </section>
-
-      {/* Monthly tasks */}
-      <section>
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          {t("clients.tasks.title")}
-        </h3>
-        <MonthlyTaskChecklist
-          zohoId={client.zohoContactId}
-          clientName={client.name}
-          tasks={detail?.monthlyTasks ?? []}
-          onRefresh={onRefresh}
-        />
       </section>
 
       {/* WhatsApp templates */}
