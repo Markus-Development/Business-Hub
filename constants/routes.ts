@@ -147,6 +147,12 @@ export const ROUTES = {
     },
     auth: {
       login: "/api/auth/login",
+      // Google-login fallback (separate from the calendar OAuth at
+      // google.callback): own start/callback endpoints, own redirect URI
+      // (GOOGLE_LOGIN_REDIRECT_URI), scopes openid email profile, no token
+      // persistence.
+      googleStart: "/api/auth/google/start",
+      googleCallback: "/api/auth/google/callback",
     },
     inbox: {
       create: "/api/inbox/create",

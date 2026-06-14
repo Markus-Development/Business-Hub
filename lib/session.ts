@@ -13,6 +13,9 @@ import type { SessionOptions } from "iron-session";
 
 export type SessionData = {
   isLoggedIn: boolean;
+  // Set by the Google-login callback (lowercased, whitelisted address). Absent
+  // for password-gate logins. Display/audit only — never used for authorization.
+  email?: string;
 };
 
 // iron-session requires a password of at least 32 characters. SESSION_SECRET

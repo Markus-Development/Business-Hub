@@ -9,6 +9,9 @@ import { ROUTES } from "@/constants/routes";
 //  - /login + /api/auth/login: the gate would lock the user out of the gate.
 //  - /api/auth/callback/google: Google calls this server-side during the OAuth
 //    handshake; it carries no session cookie, so gating it breaks calendar auth.
+//  - /api/auth/google/start + /api/auth/google/callback: the Google-LOGIN flow
+//    (separate from calendar OAuth). Both run before a session exists, so gating
+//    them would create a redirect loop back to /login.
 //  - /api/calls/create: the external Call Miner skill posts here unauthenticated
 //    in v1 (it has no session cookie). Re-evaluate when that endpoint gets its
 //    own bearer token.
@@ -17,6 +20,8 @@ import { ROUTES } from "@/constants/routes";
 const PUBLIC_PATHS = new Set<string>([
   ROUTES.pages.login,
   ROUTES.api.auth.login,
+  ROUTES.api.auth.googleStart,
+  ROUTES.api.auth.googleCallback,
   ROUTES.api.google.callback,
   ROUTES.api.calls.create,
 ]);

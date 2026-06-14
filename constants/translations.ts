@@ -1083,6 +1083,16 @@ export const translations = {
   "login.submit": { de: "Anmelden", en: "Sign in" },
   "login.submitting": { de: "Anmelden …", en: "Signing in…" },
   "login.error": { de: "Falsches Passwort.", en: "Wrong password." },
+  "login.google": { de: "Mit Google anmelden", en: "Sign in with Google" },
+  "login.or": { de: "oder", en: "or" },
+  "login.googleForbidden": {
+    de: "Diese E-Mail ist nicht freigegeben.",
+    en: "This email is not allowed.",
+  },
+  "login.googleError": {
+    de: "Anmeldung mit Google fehlgeschlagen. Bitte erneut versuchen.",
+    en: "Google sign-in failed. Please try again.",
+  },
 
   "capture.title": { de: "Schnell erfassen", en: "Quick Capture" },
   "capture.subtitle": {
