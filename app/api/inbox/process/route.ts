@@ -11,6 +11,7 @@ import { DEPARTMENTS } from "@/constants/departments";
 import { PRIORITIES, type Priority } from "@/constants/priorities";
 import { RESOURCE_TYPES } from "@/constants/resource-types";
 import { INBOX_TYPES } from "@/constants/inbox";
+import { DEVELOPMENT_DEPARTMENT, PRODUCTS, DEV_TYPES } from "@/constants/development";
 
 export const runtime = "nodejs";
 
@@ -91,6 +92,18 @@ export async function POST(req: Request) {
         dueDate,
         nextAction,
       };
+
+      // Dev-work projects require Product + Dev Type (mirrors the Add Dev Item
+      // dialog). For any other department, product/devType are ignored entirely.
+      if (department === DEVELOPMENT_DEPARTMENT) {
+        const product = typeof payload.product === "string" ? payload.product : "";
+        if (!(PRODUCTS as readonly string[]).includes(product)) return bad("invalid_product");
+        const devType = typeof payload.devType === "string" ? payload.devType : "";
+        if (!(DEV_TYPES as readonly string[]).includes(devType)) return bad("invalid_dev_type");
+        draft.product = product;
+        draft.devType = devType;
+      }
+
       const project = await createProject(draft);
       destinationUrl = project.url;
       routedTo = `Project: ${title}`;

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { DEPARTMENTS } from "@/constants/departments";
 import { PRIORITIES } from "@/constants/priorities";
 import { RESOURCE_TYPES } from "@/constants/resource-types";
+import { DEVELOPMENT_DEPARTMENT, PRODUCTS, DEV_TYPES } from "@/constants/development";
 
 const AREA_NONE = "__none";
 
@@ -22,7 +23,14 @@ export type Suggestion = {
   destination: "project" | "resource";
   title: string;
   body: string;
-  project: { department: string; priority: string; nextAction: string; dueDate: string | null };
+  project: {
+    department: string;
+    priority: string;
+    nextAction: string;
+    dueDate: string | null;
+    product: string | null;
+    devType: string | null;
+  };
   resource: { area: string | null; type: string };
 };
 
@@ -35,6 +43,8 @@ export type ProcessPayload = {
   dueDate: string | null;
   area: string | null;
   type: string;
+  product: string | null;
+  devType: string | null;
 };
 
 export function SuggestionForm({
@@ -61,6 +71,8 @@ export function SuggestionForm({
   const [priority, setPriority] = useState(suggestion.project.priority);
   const [nextAction, setNextAction] = useState(suggestion.project.nextAction);
   const [dueDate, setDueDate] = useState(suggestion.project.dueDate ?? "");
+  const [product, setProduct] = useState(suggestion.project.product ?? "");
+  const [devType, setDevType] = useState(suggestion.project.devType ?? "");
   const [area, setArea] = useState(suggestion.resource.area ?? "");
   const [type, setType] = useState(suggestion.resource.type);
 
@@ -75,9 +87,14 @@ export function SuggestionForm({
     setPriority(suggestion.project.priority);
     setNextAction(suggestion.project.nextAction);
     setDueDate(suggestion.project.dueDate ?? "");
+    setProduct(suggestion.project.product ?? "");
+    setDevType(suggestion.project.devType ?? "");
     setArea(suggestion.resource.area ?? "");
     setType(suggestion.resource.type);
   }, [suggestion]);
+
+  const isDevProject = department === DEVELOPMENT_DEPARTMENT && destination === "project";
+  const devFieldsMissing = isDevProject && (!product || !devType);
 
   const submit = () => {
     onProcess(destination, {
@@ -89,6 +106,8 @@ export function SuggestionForm({
       dueDate: dueDate || null,
       area: area || null,
       type,
+      product: isDevProject ? product || null : null,
+      devType: isDevProject ? devType || null : null,
     });
   };
 
@@ -164,6 +183,44 @@ export function SuggestionForm({
           <Field label={t("inbox.field.dueDate")}>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </Field>
+          {department === DEVELOPMENT_DEPARTMENT ? (
+            <>
+              <Field
+                label={t("development.add.product")}
+                error={!product ? t("development.add.productRequired") : null}
+              >
+                <Select value={product} onValueChange={setProduct}>
+                  <SelectTrigger className="h-9 w-full text-sm">
+                    <SelectValue placeholder={t("development.add.selectProduct")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRODUCTS.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field
+                label={t("development.add.devType")}
+                error={!devType ? t("development.add.devTypeRequired") : null}
+              >
+                <Select value={devType} onValueChange={setDevType}>
+                  <SelectTrigger className="h-9 w-full text-sm">
+                    <SelectValue placeholder={t("development.add.selectDevType")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEV_TYPES.map((dt) => (
+                      <SelectItem key={dt} value={dt}>
+                        {dt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -203,7 +260,7 @@ export function SuggestionForm({
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button onClick={submit} disabled={busy || titleMissing}>
+        <Button onClick={submit} disabled={busy || titleMissing || devFieldsMissing}>
           {busy ? t("inbox.creating") : t("inbox.create")}
         </Button>
         <Button variant="outline" onClick={onSomeday} disabled={busy}>

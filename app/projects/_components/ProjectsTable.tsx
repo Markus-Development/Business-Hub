@@ -66,11 +66,15 @@ export function ProjectsTable({
   const [locale] = useLocale();
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // Compact numeric format (de-DE → "21.06.2026", en-US → "06/21/2026") so the
+  // Due Date cell stays short and the column never overflows / truncates at
+  // normal desktop width. The long "month: short" form ("21. Juni 2026") used to
+  // collapse the cell when Name (w-full) absorbed the slack.
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale === "de" ? "de-DE" : "en-US", {
         year: "numeric",
-        month: "short",
+        month: "2-digit",
         day: "2-digit",
       }),
     [locale],
@@ -153,35 +157,35 @@ export function ProjectsTable({
       {
         accessorKey: "status",
         header: t("projects.col.status"),
-        meta: { cellClass: "w-[140px]", headerClass: "w-[140px]" } satisfies ColMeta,
+        meta: { cellClass: "w-[120px]", headerClass: "w-[120px]" } satisfies ColMeta,
         cell: ({ row }) => (
           <OptionBadgeSelect
             value={row.original.status}
             options={statusBadgeOptions}
             onChange={(v) => onUpdate(row.original.id, "Status", v)}
             placeholder="—"
-            widthClass="w-[130px]"
+            widthClass="w-[112px]"
           />
         ),
       },
       {
         accessorKey: "department",
         header: t("projects.col.department"),
-        meta: { cellClass: "w-[150px]", headerClass: "w-[150px]" } satisfies ColMeta,
+        meta: { cellClass: "w-[130px]", headerClass: "w-[130px]" } satisfies ColMeta,
         cell: ({ row }) => (
           <OptionBadgeSelect
             value={row.original.department}
             options={departmentBadgeOptions}
             onChange={(v) => onUpdate(row.original.id, "Department", v)}
             placeholder={t("projects.cell.noDepartment")}
-            widthClass="w-[140px]"
+            widthClass="w-[122px]"
           />
         ),
       },
       {
         accessorKey: "priority",
         header: t("projects.col.priority"),
-        meta: { cellClass: "w-[120px]", headerClass: "w-[120px]" } satisfies ColMeta,
+        meta: { cellClass: "w-[104px]", headerClass: "w-[104px]" } satisfies ColMeta,
         sortingFn: (a, b) => {
           const av = a.original.priority ? PRIORITY_ORDER[a.original.priority] : 99;
           const bv = b.original.priority ? PRIORITY_ORDER[b.original.priority] : 99;
@@ -196,7 +200,7 @@ export function ProjectsTable({
             options={priorityBadgeOptions}
             onChange={(v) => onUpdate(row.original.id, "Priority", v)}
             placeholder="—"
-            widthClass="w-[110px]"
+            widthClass="w-[96px]"
             bgFor={priorityColourBg}
             textFor={priorityColourText}
           />
@@ -205,7 +209,7 @@ export function ProjectsTable({
       {
         accessorKey: "dueDate",
         header: t("projects.col.dueDate"),
-        meta: { cellClass: "w-[150px]", headerClass: "w-[150px]" } satisfies ColMeta,
+        meta: { cellClass: "w-[112px]", headerClass: "w-[112px]" } satisfies ColMeta,
         sortingFn: (a, b) => {
           const av = a.original.dueDate ?? "";
           const bv = b.original.dueDate ?? "";

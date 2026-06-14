@@ -9,6 +9,7 @@ import {
 import { DEPARTMENTS } from "@/constants/departments";
 import { PRIORITIES } from "@/constants/priorities";
 import { RESOURCE_TYPES } from "@/constants/resource-types";
+import { PRODUCTS, DEV_TYPES } from "@/constants/development";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,8 @@ type Suggestion = {
     priority: string;
     nextAction: string;
     dueDate: string | null;
+    product: string | null;
+    devType: string | null;
   };
   resource: { area: string | null; type: string };
 };
@@ -81,7 +84,9 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON in genau dieser Form (keine Erkläru
     "department": <einer der erlaubten Department-Werte>,
     "priority": "High" | "Medium" | "Low",
     "nextAction": "<die nächste konkrete physische Handlung>",
-    "dueDate": "YYYY-MM-DD" oder null
+    "dueDate": "YYYY-MM-DD" oder null,
+    "product": <einer der erlaubten Product-Werte oder null>,
+    "devType": <einer der erlaubten Dev-Type-Werte oder null>
   },
   "resource": {
     "area": <einer der erlaubten Area-Werte oder null>,
@@ -93,6 +98,7 @@ Regeln:
 - Wähle "destination" nach bestem Urteil (umsetzbare Aufgabe -> project; Wissen/Referenz/Link -> resource).
 - Fülle BEIDE Blöcke (project UND resource) vollständig aus, damit der Nutzer das Ziel in der UI wechseln kann.
 - Nutze nur die erlaubten Enum-Werte. Erfinde keine neuen.
+- "product" und "devType" NUR ausfüllen, wenn department = "Development" UND es sich um Entwicklungsarbeit handelt; sonst beide null.
 - Sprache der Ausgabe = Sprache des Eintrags (Standard: Deutsch).
 - Keine Gedankenstriche / em-dashes im Body.`;
 
@@ -138,6 +144,8 @@ export async function POST(req: Request) {
   const userContent = [
     `ERLAUBTE DEPARTMENTS: ${DEPARTMENTS.join(", ")}`,
     `ERLAUBTE PRIORITIES: ${PRIORITIES.join(", ")}`,
+    `ERLAUBTE PRODUCTS: ${PRODUCTS.join(", ")}`,
+    `ERLAUBTE DEV TYPES: ${DEV_TYPES.join(", ")}`,
     `ERLAUBTE RESOURCE TYPES: ${RESOURCE_TYPES.join(", ")}`,
     `ERLAUBTE RESOURCE AREAS: ${areaOptions.length ? areaOptions.join(", ") : "(keine — area = null)"}`,
     "",
@@ -176,6 +184,14 @@ export async function POST(req: Request) {
       : "Medium";
   const dueDate =
     typeof proj.dueDate === "string" && DATE_RE.test(proj.dueDate) ? proj.dueDate : null;
+  const product =
+    typeof proj.product === "string" && (PRODUCTS as readonly string[]).includes(proj.product)
+      ? proj.product
+      : null;
+  const devType =
+    typeof proj.devType === "string" && (DEV_TYPES as readonly string[]).includes(proj.devType)
+      ? proj.devType
+      : null;
   const resType =
     typeof res.type === "string" && (RESOURCE_TYPES as readonly string[]).includes(res.type)
       ? res.type
@@ -195,6 +211,8 @@ export async function POST(req: Request) {
       priority,
       nextAction: typeof proj.nextAction === "string" ? proj.nextAction : "",
       dueDate,
+      product,
+      devType,
     },
     resource: { area: resArea, type: resType },
   };
